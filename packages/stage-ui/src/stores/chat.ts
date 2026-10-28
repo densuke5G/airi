@@ -12,7 +12,7 @@ import { createChatOrchestratorRuntime, renderConversationPreview } from '@proj-
 import { IOAttributes, IOEvents, IOSpanNames, IOSubsystems } from '@proj-airi/stage-shared'
 import { nanoid } from 'nanoid'
 import { defineStore, storeToRefs } from 'pinia'
-import { computed, shallowRef, toRaw } from 'vue'
+import { computed, shallowRef, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { getConversationAnalyticsSurface } from '../composables'
@@ -27,6 +27,7 @@ import {
   AIRI_CHAT_ROUND_ID_HEADER,
   AIRI_CHAT_SESSION_ID_HEADER,
 } from '../libs/product-signals/headers'
+import { getMemoryConnection, getOptionalMemoryConnection } from '../services/memory/connection'
 import { useLLM } from './ai/chat-llm/llm'
 import { resolveLlmTools } from './ai/chat-llm/tool-resolver'
 import { useLlmToolsStore } from './ai/chat-llm/tools'
@@ -41,6 +42,7 @@ import { useContextObservabilityStore } from './devtools/context-observability'
 import { useAiriCardStore } from './modules/airi-card'
 import { useAutonomousArtistryStore } from './modules/artistry-autonomous'
 import { useConsciousnessStore } from './modules/consciousness'
+import { useMemoryStore } from './modules/memory'
 import { useStickersStore } from './modules/stickers'
 import { useVisionStore } from './modules/vision'
 import { useWebSearchStore } from './modules/web-search'
@@ -198,6 +200,9 @@ export const useChatStore = defineStore('chat', () => {
   const chatStream = useChatStreamStore()
   const chatContext = useChatContextStore()
   const cardStore = useAiriCardStore()
+  const memoryStore = useMemoryStore()
+  let stopMemoryHost: (() => Promise<void>) | undefined
+  let memoryHostPromise: Promise<void> | undefined
   const stickersStore = useStickersStore()
   const contextObservability = useContextObservabilityStore()
   const { activeSessionId } = storeToRefs(chatSession)
@@ -219,12 +224,17 @@ export const useChatStore = defineStore('chat', () => {
    * A promoted renderer restarts the leader-owned cloud consumer.
    */
   async function initialize(syncedPinia: SyncedPiniaRuntime) {
+    if (syncedPinia.isLeader())
+      await registerMemoryHost()
     stopLeadershipListener ??= syncedPinia.onLeadershipChange((isLeader) => {
       if (!isLeader) {
+        void stopMemoryHost?.().catch(() => undefined)
+        stopMemoryHost = undefined
         chatSession.dispose()
         return
       }
 
+      void registerMemoryHost().catch(() => undefined)
       void chatSession.ensureCurrentSession().catch((error) => {
         console.error('[chat] Failed to start chat consumers after leader promotion:', error)
       })
@@ -238,6 +248,8 @@ export const useChatStore = defineStore('chat', () => {
     stopLeadershipListener?.()
     stopLeadershipListener = undefined
     chatSession.dispose()
+    void stopMemoryHost?.().catch(() => undefined)
+    stopMemoryHost = undefined
   }
 
   /**
@@ -285,7 +297,8 @@ export const useChatStore = defineStore('chat', () => {
     // These decisions read the model of the first step and hold for the stream.
     // `resolveStep` (#2709) can change the model between steps, and no stage-ui
     // caller uses it yet. Decide for each step when one does.
-    const describeToolImage = chatVision.toolImageReader(model, options?.abortSignal)
+    // Private context cannot cross an unbound auxiliary vision-model request.
+    const describeToolImage = options?.privateContext ? undefined : chatVision.toolImageReader(model, options?.abortSignal)
     // The vision model reads new tool images, so stored ones follow the same
     // decision. Without a reader, stored tool images replay as they are.
     let providerContext = describeToolImage
@@ -294,6 +307,8 @@ export const useChatStore = defineStore('chat', () => {
     const hasImages = context.turns.some(turn => turn.type === 'user' && turn.content.some(part => part.type === 'image'))
 
     if (hasImages) {
+      if (options?.privateContext && chatVision.readsAttachedImages(model))
+        throw new Error('memory.auxiliary_model_unsupported')
       if (chatVision.readsAttachedImages(model)) {
         const { runVisionInference } = useVisionInference()
         const currentTurnId = context.turns.findLast(turn => turn.type === 'user')?.id
@@ -346,8 +361,8 @@ export const useChatStore = defineStore('chat', () => {
 
     options?.abortSignal?.throwIfAborted()
 
-    const providerMessages = renderConversationPreview(providerContext)
-    if (options?.requestCorrelation?.conversationId)
+    const providerMessages = options?.privateContext ? [] : renderConversationPreview(providerContext)
+    if (!options?.privateContext && options?.requestCorrelation?.conversationId)
       contextObservability.captureProviderPromptProjection(options.requestCorrelation.conversationId, providerMessages)
 
     const llmSpan = startSpan(IOSpanNames.LLMInference, activeTurnSpan.value, {
@@ -438,7 +453,85 @@ export const useChatStore = defineStore('chat', () => {
     chatSession.setSessionMessages(sessionId, nextMessages)
   }
 
-  const runtime = createChatOrchestratorRuntime({
+  let runtime: ReturnType<typeof createChatOrchestratorRuntime>
+
+  async function registerMemoryHost(): Promise<void> {
+    if (stopMemoryHost || !getOptionalMemoryConnection())
+      return
+    memoryHostPromise ??= (async () => {
+      stopMemoryHost = await getMemoryConnection().registerConversationHost(async (request) => {
+        if (request.userMessageId)
+          runtime.cancelTurn({ sessionId: request.sessionId, turnId: request.userMessageId })
+        else
+          runtime.cancelPendingSends(request.sessionId)
+        // Transformed contexts never enter durable history or continuation registries.
+        // The owner excludes stored memory history before any later attempt.
+        return true
+      })
+      await memoryStore.refresh()
+    })().finally(() => { memoryHostPromise = undefined })
+    await memoryHostPromise
+  }
+
+  runtime = createChatOrchestratorRuntime({
+    prepareRequestContext: async (input) => {
+      if (!getOptionalMemoryConnection())
+        return { conversation: input.conversation }
+      await registerMemoryHost()
+      const cardId = cardStore.activeCardId
+      const providerId = input.providerId
+      const model = input.model
+      const selection = new AbortController()
+      const stopSelection = watch(() => [cardStore.activeCardId, activeProvider.value, activeModel.value], () => selection.abort(), { flush: 'sync' })
+      const signal = AbortSignal.any([input.signal, selection.signal])
+      const enabled = memoryStore.snapshot.profile.enabled
+      const sourceMessages = chatSession.getSessionMessages(input.sessionId)
+      const availableAssistants = sourceMessages.filter(message => message.role === 'assistant')
+      const appId = `airi-app:${input.attemptId}`
+      // Resolve host projection IDs back to the persisted source IDs used by the outbox.
+      // The card's combined system prompt never acquires application authority.
+      const turns: Conversation['turns'] = input.conversation.turns.flatMap((turn): Conversation['turns'] => {
+        if (turn.type === 'system')
+          return enabled ? [] : [turn]
+        if (turn.type === 'user') {
+          const source = sourceMessages.find(message => message.role === 'user' && message.id && (message.id === turn.id || `${message.id}-0` === turn.id))
+          return source?.id ? [{ ...turn, id: source.id }] : [turn]
+        }
+        const index = availableAssistants.findIndex(message => message.id && (message.generationTranscript?.id === turn.id || message.id === turn.id || `${message.id}-0` === turn.id))
+        const source = index >= 0 ? availableAssistants.splice(index, 1)[0] : undefined
+        return source?.id ? [{ ...turn, id: source.id }] : []
+      })
+      if (enabled) {
+        turns.unshift({ type: 'system', id: appId, authority: 'system', content: [{ type: 'text', text: [chatSession.applicationInstructions, runtimePrompt.value, llmToolsetPromptsStore.activeToolsetPrompt].filter(Boolean).join('\n\n') }] })
+      }
+      try {
+        const prepared = await getMemoryConnection().prepare({
+          ...input,
+          cardId,
+          providerId,
+          model,
+          conversation: enabled ? { turns } : input.conversation,
+          inputKind: input.inputKind,
+          appInstructionIds: enabled ? [appId] : [],
+        }, signal)
+        const isCurrent = prepared.requestPolicy?.isCurrent
+        if (prepared.requestPolicy)
+          prepared.requestPolicy.isCurrent = () => (isCurrent?.() ?? true) && cardStore.activeCardId === cardId && activeProvider.value === providerId && activeModel.value === model
+        const settled = prepared.settled
+        return { ...prepared, settled: async (event) => {
+          try {
+            await settled?.(event)
+          }
+          finally {
+            stopSelection()
+          }
+        } }
+      }
+      catch (error) {
+        stopSelection()
+        throw error
+      }
+    },
     session: {
       ensureSession: sessionId => chatSession.ensureSession(sessionId),
       getSessionMessages: sessionId => chatSession.getSessionMessages(sessionId).map(message => toRaw(message)),

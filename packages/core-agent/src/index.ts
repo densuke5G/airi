@@ -24,6 +24,7 @@ export type {
   ChatOrchestratorRuntimeState,
   ChatOrchestratorSendOptions,
   ChatOrchestratorSessionPort,
+  PreparedRequestContext,
   QueuedSendSnapshot,
 } from './runtime/chat-orchestrator-runtime'
 export { createChatOrchestratorRuntime } from './runtime/chat-orchestrator-runtime'
@@ -36,6 +37,7 @@ export {
   modelKey,
   streamFrom,
 } from './runtime/llm-service'
+export { ProviderRequestDeniedError } from './runtime/provider-request-gate'
 export {
   categorizeResponse,
   createStreamingCategorizer,
@@ -65,6 +67,7 @@ export type {
 
 export type {
   BuiltinToolsResolver,
+  ProviderRequestPolicy,
   StreamEvent,
   StreamFromOptions,
   StreamOptions,

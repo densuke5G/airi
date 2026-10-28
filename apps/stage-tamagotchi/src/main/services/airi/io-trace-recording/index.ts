@@ -4,6 +4,7 @@ import { appendFile, mkdir, readdir, rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { errorMessageFrom } from '@moeru/std'
+import { redactMemorySpan } from '@proj-airi/stage-ui/services/memory/privacy'
 import { Mutex } from 'async-mutex'
 
 const RETENTION_MS = 7 * 24 * 60 * 60 * 1000
@@ -61,7 +62,7 @@ export class IOTraceRecordingService {
     await this.mutex.runExclusive(async () => {
       if (!this.filePath)
         return
-      await appendFile(this.filePath, `${JSON.stringify(span)}\n`, { mode: 0o600 })
+      await appendFile(this.filePath, `${JSON.stringify(redactMemorySpan(span))}\n`, { mode: 0o600 })
     })
   }
 

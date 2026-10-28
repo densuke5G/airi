@@ -74,6 +74,9 @@ export function createSpeechPipeline<TAudio>(options: SpeechPipelineOptions<TAud
   const pending: IntentState[] = []
   let activeIntent: IntentState | null = null
   const playbackWaiters = new Map<string, () => void>()
+  const playbackItems = new Map<string, PlaybackItem<TAudio>>()
+  const running = new Map<string, { ownerId?: string, done: Promise<void> }>()
+  const sealedOwners = new Set<string>()
 
   function resolvePlayback(itemId: string) {
     const resolve = playbackWaiters.get(itemId)
@@ -81,6 +84,7 @@ export function createSpeechPipeline<TAudio>(options: SpeechPipelineOptions<TAud
       return
 
     playbackWaiters.delete(itemId)
+    playbackItems.delete(itemId)
     resolve()
   }
 
@@ -101,12 +105,15 @@ export function createSpeechPipeline<TAudio>(options: SpeechPipelineOptions<TAud
   function waitForPlayback(item: PlaybackItem<TAudio>) {
     return new Promise<void>((resolve) => {
       playbackWaiters.set(item.id, resolve)
+      playbackItems.set(item.id, item)
       try {
         options.playback.schedule(item)
       }
-      catch (err) {
+      catch {
         playbackWaiters.delete(item.id)
-        logger.warn('Playback schedule failed:', err)
+        playbackItems.delete(item.id)
+        logger.warn('Playback schedule failed')
+        context.emit(speechPipelineEventMap.onPlaybackReject, { item, reason: 'schedule-failed' })
         resolve()
       }
     })
@@ -124,6 +131,8 @@ export function createSpeechPipeline<TAudio>(options: SpeechPipelineOptions<TAud
   }
 
   async function runIntent(intent: IntentState) {
+    const completion = Promise.withResolvers<void>()
+    running.set(intent.intentId, { ownerId: intent.ownerId, done: completion.promise })
     activeIntent = intent
     context.emit(speechPipelineEventMap.onIntentStart, intent.intentId)
     if (intent.turnId)
@@ -207,11 +216,13 @@ export function createSpeechPipeline<TAudio>(options: SpeechPipelineOptions<TAud
     function createTtsTask(request: TtsRequest) {
       const task = (async () => {
         let audio: TAudio | null = null
+        let unavailable: 'empty' | 'failed' = 'empty'
         try {
           audio = await options.tts(request, intent.controller.signal)
         }
-        catch (err) {
-          logger.warn('TTS generation failed:', err)
+        catch {
+          unavailable = 'failed'
+          logger.warn('TTS generation failed')
           if (intent.controller.signal.aborted)
             return
         }
@@ -223,6 +234,7 @@ export function createSpeechPipeline<TAudio>(options: SpeechPipelineOptions<TAud
         }
 
         if (!audio) {
+          context.emit(speechPipelineEventMap.onTtsUnavailable, { request, reason: unavailable })
           completedRequests.set(request.sequence, null)
           scheduleCompletedRequests()
           return
@@ -293,15 +305,24 @@ export function createSpeechPipeline<TAudio>(options: SpeechPipelineOptions<TAud
         createTtsTask(request)
       }
 
+      context.emit(speechPipelineEventMap.onSpeechRequestsComplete, {
+        intentId: intent.intentId,
+        streamId: intent.streamId,
+        turnId: intent.turnId,
+        ownerId: intent.ownerId,
+      })
       await Promise.allSettled(inFlightTasks)
       scheduleCompletedRequests()
       await timeline.flush('speech')
       reader.releaseLock()
     }
-    catch (err) {
-      logger.warn('Speech pipeline intent failed:', err)
+    catch {
+      intent.canceled = true
+      intent.controller.abort()
+      logger.warn('Speech pipeline intent failed')
     }
     finally {
+      await Promise.allSettled(inFlightTasks)
       if (intent.canceled) {
         context.emit(speechPipelineEventMap.onIntentCancel, { intentId: intent.intentId, reason: intent.controller.signal.reason?.toString() })
         if (intent.turnId)
@@ -314,6 +335,8 @@ export function createSpeechPipeline<TAudio>(options: SpeechPipelineOptions<TAud
       }
 
       intents.delete(intent.intentId)
+      running.delete(intent.intentId)
+      completion.resolve()
       if (activeIntent?.intentId === intent.intentId)
         activeIntent = null
 
@@ -330,6 +353,8 @@ export function createSpeechPipeline<TAudio>(options: SpeechPipelineOptions<TAud
     const turnId = optionsInput?.turnId
     const streamId = optionsInput?.streamId ?? createId('stream')
     const priority = priorityResolver.resolve(optionsInput?.priority)
+    if (optionsInput?.ownerId && sealedOwners.has(optionsInput.ownerId))
+      throw new Error('Speech output owner is stopped')
     const behavior = optionsInput?.behavior ?? 'queue'
     const ownerId = optionsInput?.ownerId
 
@@ -462,7 +487,34 @@ export function createSpeechPipeline<TAudio>(options: SpeechPipelineOptions<TAud
     options.playback.stopAll(reason)
   }
 
+  /** Seal first, stop queues, then await the actual synthesis and timeline lifecycles. */
+  async function stopOwner(ownerId: string): Promise<boolean> {
+    sealedOwners.add(ownerId)
+    const active = [...running.values()].filter(item => item.ownerId === ownerId)
+    for (const intent of [...intents.values()]) {
+      if (intent.ownerId !== ownerId)
+        continue
+      cancelIntent(intent.intentId, 'owner-stopped')
+      if (!running.has(intent.intentId)) {
+        intents.delete(intent.intentId)
+        context.emit(speechPipelineEventMap.onIntentCancel, { intentId: intent.intentId, reason: 'owner-stopped' })
+      }
+    }
+    options.playback.stopByOwner(ownerId, 'owner-stopped')
+    for (const item of [...playbackItems.values()]) {
+      if (item.ownerId !== ownerId)
+        continue
+      context.emit(speechPipelineEventMap.onPlaybackInterrupt, { item, reason: 'owner-stopped', interruptedAt: Date.now() })
+      resolvePlayback(item.id)
+    }
+    await Promise.all(active.map(item => item.done))
+    return ![...running.values()].some(item => item.ownerId === ownerId)
+      && ![...intents.values()].some(item => item.ownerId === ownerId)
+      && ![...playbackItems.values()].some(item => item.ownerId === ownerId)
+  }
+
   return {
+    stopOwner,
     openIntent,
     cancelIntent,
     interrupt,

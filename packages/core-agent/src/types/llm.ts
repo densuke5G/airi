@@ -25,8 +25,21 @@ export type StreamEvent
     | { type: 'search', id: string, status: 'in_progress' | 'searching' | 'completed' | 'failed' }
     | { type: 'error', error: unknown }
 
+/** Authorization belongs to one prepared attempt and its pinned model selection. */
+export interface ProviderRequestPolicy {
+  providerId: string
+  model: string
+  signal: AbortSignal
+  isCurrent: () => boolean
+  beforeRequest: (kind: 'initial' | 'continuation' | 'retry', signal: AbortSignal) => Promise<{ allow: boolean }>
+}
+
 /** Options shared by generation adapters. SDK payloads stay inside each adapter. */
 export interface StreamOptions {
+  /** Applies at fetch, including SDK tool steps and automatic retries. */
+  requestPolicy?: ProviderRequestPolicy
+  /** Suppress prompt projections for request-only private context. */
+  privateContext?: boolean
   /** Reads the pinned character's current settings before each model request. */
   resolveStep?: () => Promise<{
     model: string

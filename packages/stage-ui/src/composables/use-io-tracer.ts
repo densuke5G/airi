@@ -7,6 +7,8 @@ import { hrTimeToNanoseconds } from '@opentelemetry/core'
 import { BasicTracerProvider, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base'
 import { shallowRef } from 'vue'
 
+import { memoryTracesProtected, redactMemorySpan } from '../services/memory/privacy'
+
 export type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
 
 const TRACER_NAME = 'ai.moeru.airi.io-tracer'
@@ -55,7 +57,7 @@ export function deserializeSpan(s: SerializedIOSpan): ReadableSpan {
   }
 }
 
-export function serializeSpan(span: ReadableSpan): SerializedIOSpan {
+function serializeOriginalSpan(span: ReadableSpan): SerializedIOSpan {
   const ctx = span.spanContext()
   const parentCtx = span.parentSpanContext
   return {
@@ -85,7 +87,8 @@ let broadcastChannel: BroadcastChannel | undefined
 export function createCallbackSpanExporter(): SpanExporter {
   return {
     export: (spans, resultCallback) => {
-      for (const span of spans) {
+      for (const originalSpan of spans) {
+        const span = memoryTracesProtected() ? deserializeSpan(serializeSpan(originalSpan)) : originalSpan
         spanCallback?.(span)
         for (const subscriber of spanSubscribers)
           subscriber(span)
@@ -153,3 +156,8 @@ export function startSpan(name: string, parent?: Span, attrs?: Record<string, bo
 }
 
 export const activeTurnSpan = shallowRef<Span | undefined>()
+
+/** Apply the same body-free projection to callbacks, broadcasts, and file-recording clients. */
+export function serializeSpan(span: ReadableSpan): SerializedIOSpan {
+  return redactMemorySpan(serializeOriginalSpan(span))
+}

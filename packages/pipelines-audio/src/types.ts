@@ -112,6 +112,9 @@ export interface IntentHandle {
 }
 
 export interface SpeechPipelineEvents<TAudio> {
+  /** The segment reader exhausted its final flush. Synthesis and playback can still be pending. */
+  onSpeechRequestsComplete: (event: { intentId: string, streamId: string, turnId?: string, ownerId?: string }) => void
+  onTtsUnavailable: (event: { request: TtsRequest, reason: 'empty' | 'failed' }) => void
   onSegment: (segment: TextSegment) => void
   onSpecial: (segment: TextSegment) => void
   onTtsRequest: (request: TtsRequest) => void

@@ -1270,6 +1270,9 @@ catalogs:
       version: 0.1.16
 
 overrides:
+  '@metrodoros/contracts': file:./vendor/metrodoros/metrodoros-contracts-0.1.1-9ef7b25220aa.tgz
+  '@metrodoros/client': file:./vendor/metrodoros/metrodoros-client-0.1.1-7d45de327680.tgz
+  '@metrodoros/airi-adapter': file:./vendor/metrodoros/metrodoros-airi-adapter-0.1.1-af1bca2d7c05.tgz
   '@types/hast': ^3.0.5
   array-flatten: npm:@nolyfill/array-flatten@^1.0.44
   axios: npm:feaxios@^0.0.23
@@ -1947,6 +1950,9 @@ importers:
       '@intlify/core':
         specifier: 'catalog:'
         version: 11.4.9
+      '@metrodoros/airi-adapter':
+        specifier: file:../../vendor/metrodoros/metrodoros-airi-adapter-0.1.1-af1bca2d7c05.tgz
+        version: file:vendor/metrodoros/metrodoros-airi-adapter-0.1.1-af1bca2d7c05.tgz
       '@moeru/eventa':
         specifier: 'catalog:'
         version: 1.0.2(electron@43.4.1(supports-color@10.2.2))(h3@2.0.1-rc.29(crossws@0.4.12(srvx@0.12.7)))(hono@4.13.3)(web-worker@1.5.0)
@@ -4982,6 +4988,15 @@ importers:
       '@huggingface/transformers':
         specifier: 'catalog:'
         version: 3.8.1
+      '@metrodoros/airi-adapter':
+        specifier: file:../../vendor/metrodoros/metrodoros-airi-adapter-0.1.1-af1bca2d7c05.tgz
+        version: file:vendor/metrodoros/metrodoros-airi-adapter-0.1.1-af1bca2d7c05.tgz
+      '@metrodoros/client':
+        specifier: file:../../vendor/metrodoros/metrodoros-client-0.1.1-7d45de327680.tgz
+        version: file:vendor/metrodoros/metrodoros-client-0.1.1-7d45de327680.tgz
+      '@metrodoros/contracts':
+        specifier: file:../../vendor/metrodoros/metrodoros-contracts-0.1.1-9ef7b25220aa.tgz
+        version: file:vendor/metrodoros/metrodoros-contracts-0.1.1-9ef7b25220aa.tgz
       '@moeru/eventa':
         specifier: 'catalog:'
         version: 1.0.2(electron@43.4.1(supports-color@10.2.2))(h3@2.0.1-rc.29(crossws@0.4.12(srvx@0.12.7)))(hono@4.13.3)(web-worker@1.5.0)
@@ -9221,6 +9236,18 @@ packages:
 
   '@mediapipe/tasks-vision@1.0.1':
     resolution: {integrity: sha512-rvRE2FmAZ6ZxKSw7wq+e+jQDpN3t1B/tD2mJz9SmAzb1msoDkd4dMoE4wAh8Z30Um0PQwLiHr9QtomhmXk3aUQ==}
+
+  '@metrodoros/airi-adapter@file:vendor/metrodoros/metrodoros-airi-adapter-0.1.1-af1bca2d7c05.tgz':
+    resolution: {integrity: sha512-D0VS+lbJe+KlRa1bB+9Ko8MqUkXlv7j3ZCVTphvxFcZANbEZL2vgw7lRY+4TXvldqzcgrregAJk+fA/qxbKWWA==, tarball: file:vendor/metrodoros/metrodoros-airi-adapter-0.1.1-af1bca2d7c05.tgz}
+    version: 0.1.1
+
+  '@metrodoros/client@file:vendor/metrodoros/metrodoros-client-0.1.1-7d45de327680.tgz':
+    resolution: {integrity: sha512-mvyDmO3lTX8CDMriphjZqGV2C0wpXbegZJwdeT5nKrWYZ5dtyKMUadmANYc3mVoqgJvF8TlpPY7FuyW2/OnLbw==, tarball: file:vendor/metrodoros/metrodoros-client-0.1.1-7d45de327680.tgz}
+    version: 0.1.1
+
+  '@metrodoros/contracts@file:vendor/metrodoros/metrodoros-contracts-0.1.1-9ef7b25220aa.tgz':
+    resolution: {integrity: sha512-yl/vvaT3eMgpo6eQB75sQX/PY65w7ky14HzFF9DNxRFG8Y4mBq7BPLw8jwkIb+mBWaBy6mkQAo6XXa8NOv9XsQ==, tarball: file:vendor/metrodoros/metrodoros-contracts-0.1.1-9ef7b25220aa.tgz}
+    version: 0.1.1
 
   '@modelcontextprotocol/sdk@1.30.0':
     resolution: {integrity: sha512-xKd8OIzlqNzcqcNumGAa6g+PW2kjD5vrpcKOnfldAUPP3j7lnqMPwlTXQm8gF+UwH72z0lqaRbjr9hqGz0eITA==}
@@ -16801,6 +16828,10 @@ packages:
   json-buffer@3.0.1:
     resolution: {integrity: sha512-4bV5BfR2mqfQTJm+V5tPPdf+ZpuhiIvTuAB5g8kcrXOZpTT/QwwVRWBywX1ozr6lEuPdbHxwaJlm9G6mI2sfSQ==}
 
+  json-schema-to-ts@3.1.1:
+    resolution: {integrity: sha512-+DWg8jCJG2TEnpy7kOm/7/AxaYoaRbjVB4LFZLySZlWn8exGs3A4OLJR966cVvU26N7X9TWxl+Jsw7dzAqKT6g==}
+    engines: {node: '>=16'}
+
   json-schema-traverse@0.4.1:
     resolution: {integrity: sha512-xbbCH5dCYU5T8LcEhhuh7HJ88HXuW3qsI3Y0zOZFKfZEHcpWiHU/Jxzk629Brsab/mMiHQti9wMP+845RPe3Vg==}
 
@@ -19544,6 +19575,9 @@ packages:
 
   truncate-utf8-bytes@1.0.2:
     resolution: {integrity: sha512-95Pu1QXQvruGEhv62XCMO3Mm90GscOCClvrIUwCM0PYOXK3kaF3l3sIHxx71ThJfcbM2O5Au6SO3AWCSEfW4mQ==}
+
+  ts-algebra@2.0.0:
+    resolution: {integrity: sha512-FPAhNPFMrkwz76P7cdjdmiShwMynZYN6SgOujD1urY4oNm80Ou9oMdmbR45LotcKOXoy7wSmHkRFE6Mxbrhefw==}
 
   ts-api-utils@2.5.0:
     resolution: {integrity: sha512-OJ/ibxhPlqrMM0UiNHJ/0CKQkoKF243/AEmplt3qpRgkW8VG7IfOS41h7V8TjITqdByHzrjcS/2si+y4lIh8NA==}
@@ -24132,6 +24166,19 @@ snapshots:
       markdown-it: 14.1.1
 
   '@mediapipe/tasks-vision@1.0.1': {}
+
+  '@metrodoros/airi-adapter@file:vendor/metrodoros/metrodoros-airi-adapter-0.1.1-af1bca2d7c05.tgz':
+    dependencies:
+      '@metrodoros/client': file:vendor/metrodoros/metrodoros-client-0.1.1-7d45de327680.tgz
+      '@metrodoros/contracts': file:vendor/metrodoros/metrodoros-contracts-0.1.1-9ef7b25220aa.tgz
+
+  '@metrodoros/client@file:vendor/metrodoros/metrodoros-client-0.1.1-7d45de327680.tgz':
+    dependencies:
+      '@metrodoros/contracts': file:vendor/metrodoros/metrodoros-contracts-0.1.1-9ef7b25220aa.tgz
+
+  '@metrodoros/contracts@file:vendor/metrodoros/metrodoros-contracts-0.1.1-9ef7b25220aa.tgz':
+    dependencies:
+      json-schema-to-ts: 3.1.1
 
   '@modelcontextprotocol/sdk@1.30.0(supports-color@10.2.2)(zod@4.4.3)':
     dependencies:
@@ -31960,6 +32007,11 @@ snapshots:
 
   json-buffer@3.0.1: {}
 
+  json-schema-to-ts@3.1.1:
+    dependencies:
+      '@babel/runtime': 7.29.7
+      ts-algebra: 2.0.0
+
   json-schema-traverse@0.4.1: {}
 
   json-schema-traverse@1.0.0: {}
@@ -35456,6 +35508,8 @@ snapshots:
   truncate-utf8-bytes@1.0.2:
     dependencies:
       utf8-byte-length: 1.0.5
+
+  ts-algebra@2.0.0: {}
 
   ts-api-utils@2.5.0(typescript@6.0.3):
     dependencies:

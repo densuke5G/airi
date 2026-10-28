@@ -5,7 +5,7 @@ import type { ChatHistoryReplyPayload } from '../reply'
 import type { ChatToolCallRendererRegistry } from './tool-call-renderer'
 
 import { isStageCapacitor, isStageWeb } from '@proj-airi/stage-shared'
-import { computed } from 'vue'
+import { computed, nextTick, watch } from 'vue'
 
 import ChatReplyQuote from './reply-quote.vue'
 import ResponseCitations from './response-citations.vue'
@@ -13,13 +13,14 @@ import ChatResponsePart from './response-part.vue'
 import ChatSticker from './sticker.vue'
 import ChatToolCallBlock from './tool-call-block.vue'
 
+import { getOptionalMemoryConnection } from '../../../../services/memory/connection'
 import { MarkdownRenderer } from '../../../markdown'
 import { getChatHistoryItemCopyText } from '../utils'
 import { ChatActionMenu } from './action-menu'
 import { createToolCallResultLookup, resolveToolCallBlockState } from './tool-call-results'
 
 const props = withDefaults(defineProps<{
-  message: ChatAssistantMessage
+  message: ChatAssistantMessage & { id?: string }
   label: string
   replyTarget?: ChatHistoryReplyPayload
   canReply?: boolean
@@ -44,6 +45,18 @@ const emit = defineEmits<{
   (e: 'reply'): void
   (e: 'toolCallRerun', payload: ToolCallRerunRequest): void
 }>()
+
+const reportedMemoryMessages = new Set<string>()
+watch(() => [props.message.id, props.showPlaceholder, props.message.content, props.message.requestContextId, props.message.requestContextFinal], async () => {
+  const id = props.message.id
+  if (!id || !props.message.requestContextFinal || props.showPlaceholder || !props.message.requestContextId || reportedMemoryMessages.has(id))
+    return
+  await nextTick()
+  if (props.showPlaceholder || props.message.id !== id)
+    return
+  reportedMemoryMessages.add(id)
+  await getOptionalMemoryConnection()?.displayed(id).catch(() => undefined)
+}, { immediate: true, flush: 'post' })
 
 const resolvedSlices = computed<ChatSlices[]>(() => {
   if (props.message.slices?.length) {

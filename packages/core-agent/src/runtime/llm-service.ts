@@ -6,6 +6,7 @@ import type { StreamEvent, StreamFromOptions, StreamOptions } from '../types/llm
 import { APICallError } from '@xsai/shared'
 
 import { streamChatCompletions } from './chat-completions'
+import { assertRequestPolicy } from './provider-request-gate'
 import { createContinuationScope, supportsContentArray, supportsTools } from './request-context'
 import { RequestSwitch } from './request-switch'
 import { streamResponses } from './responses'
@@ -79,7 +80,10 @@ async function streamOnce({
   options,
   builtinToolsResolver,
 }: StreamFromOptions) {
+  assertRequestPolicy(options, model, options?.providerId)
   const initialStep = await options?.resolveStep?.()
+  if (initialStep)
+    assertRequestPolicy(options, initialStep.model, initialStep.providerId)
   const currentModel = initialStep?.model ?? model
   const currentProvider = initialStep?.chatProvider ?? chatProvider
   // Resolve before async tool loading so all decisions use this request's configuration.
@@ -167,7 +171,7 @@ async function streamOnce({
           usage = await streamResult.totalUsage
         }
         catch (error) {
-          console.error('Stream totalUsage error:', error)
+          console.error('Stream totalUsage error:', options?.privateContext ? 'private request failed' : error)
         }
         try {
           const normalizedUsage = !usage
@@ -179,37 +183,37 @@ async function streamOnce({
         catch (error) {
           // Usage observers are telemetry-only and must not turn a completed
           // provider response into a failed user message.
-          console.error('Stream usage callback error:', error)
+          console.error('Stream usage callback error:', options?.privateContext ? 'private request failed' : error)
         }
         resolveOnce()
       }).catch((error) => {
         // A failure after `steps` resolved belongs to optional usage
         // observation and cannot invalidate the completed response.
         if (stepsSettled) {
-          console.error('Stream usage observation error:', error)
+          console.error('Stream usage observation error:', options?.privateContext ? 'private request failed' : error)
           resolveOnce()
           return
         }
         rejectOnce(error)
         if (!(error instanceof RequestSwitch))
-          console.error('Stream steps error:', error)
+          console.error('Stream steps error:', options?.privateContext ? 'private request failed' : error)
       })
       // `steps` can reject before the success path awaits `messages`.
       // Keep this rejection sink so xsAI cannot create an unhandled rejection.
       void streamResult.generatedTurn.catch((error) => {
         if (!(error instanceof RequestSwitch))
-          console.error('Stream generated turn error:', error)
+          console.error('Stream generated turn error:', options?.privateContext ? 'private request failed' : error)
       })
       void streamResult.usage.catch((error) => {
         if (!(error instanceof RequestSwitch))
-          console.error('Stream usage error:', error)
+          console.error('Stream usage error:', options?.privateContext ? 'private request failed' : error)
       })
       // `steps` and `totalUsage` reject independently when xsAI fails a
       // stream. The success path awaits `totalUsage`, but if `steps` rejects
       // first that await never runs, so keep this unconditional rejection sink.
       void streamResult.totalUsage.catch((error) => {
         if (!(error instanceof RequestSwitch))
-          console.error('Stream totalUsage error:', error)
+          console.error('Stream totalUsage error:', options?.privateContext ? 'private request failed' : error)
       })
     }
     catch (error) {
@@ -242,10 +246,11 @@ async function streamWithTransientRetry(input: StreamFromOptions) {
       })
     }
     catch (error) {
+      assertRequestPolicy(input.options)
       const delayMs = consumerNotified ? undefined : transientRetryDelayMs(error, attempt)
       if (delayMs == null)
         throw error
-      console.warn(`[llm] Retrying provider request in ${delayMs}ms (retry ${attempt + 1}/${transientRetry.backoffMs.length}):`, error)
+      console.warn(`[llm] Retrying provider request in ${delayMs}ms (retry ${attempt + 1}/${transientRetry.backoffMs.length}):`, input.options?.privateContext ? 'private request failed' : error)
       await waitBeforeRetry(delayMs, input.options?.abortSignal)
     }
   }
@@ -295,6 +300,7 @@ export async function streamFrom(input: StreamFromOptions): Promise<void> {
       return
     }
     catch (error) {
+      assertRequestPolicy(input.options)
       if (!(error instanceof RequestSwitch))
         throw error
       switches += 1

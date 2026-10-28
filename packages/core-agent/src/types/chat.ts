@@ -50,6 +50,10 @@ export interface ChatAssistantMessage extends AssistantMessage {
   providerTranscript?: Message[]
   /** Portable turn history and adapter-owned continuation data. */
   generationTranscript?: AssistantTurn
+  /** Request-only output identity. It grants no authority when restored from history. */
+  requestContextId?: string
+  /** Set only after the complete generation and parser flush succeed. */
+  requestContextFinal?: boolean
   categorization?: {
     speech: string
     reasoning: string
@@ -93,6 +97,8 @@ export type ChatHistoryItem = (ChatMessage | ErrorMessage) & {
 }
 
 export interface ChatStreamEventContext {
+  /** Present only after request preparation, before the first provider send. */
+  requestContextId?: string
   /** Session ownership travels with the event across concurrent turns and renderer transports. */
   sessionId: string
   /** Stable correlation id shared by every hook emitted for one user turn. */
