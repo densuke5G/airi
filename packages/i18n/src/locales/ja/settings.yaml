@@ -218,6 +218,7 @@ pages:
       connection_required: '先に記憶サーバーへ接続し、確認してください。'
       persona_binding_required: '人格を承認する前に、この AIRI Card とキャラクターを対応付けてください。'
       persona_unavailable: 'キャラクターのプロフィールを取得できません。接続を更新して再試行してください。'
+      conversation_host_unavailable: '会話ウィンドウが利用できません。復旧してから接続してください。'
       speech_host_unavailable: '音声ウィンドウが利用できません。復旧してからメッセージを送信してください。'
     status:
       disabled: 記憶連携はオフです

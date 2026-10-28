@@ -7,7 +7,7 @@ import { installMemoryConnection, MemoryConnectionClient } from '@proj-airi/stag
 import { memoryCancel, memoryCommand, memoryDisplayed, memoryGate, memoryPrepare, memoryRegisterHost, memoryReport, memorySnapshotChanged, memorySpeechInput, memoryStop, memoryUnregisterHost } from '../../shared/eventa/metrodoros'
 
 /** One renderer client uses the existing preload Eventa transport. Tokens stay out of Pinia. */
-export function initializeMemoryConnection(context: ReturnType<typeof createContext>['context']): void {
+export function initializeMemoryConnection(context: ReturnType<typeof createContext>['context']): () => void {
   const handlers = new Map<'conversation' | 'speech', (request: MemoryStopRequest) => Promise<boolean>>()
   let speechInput: ((input: MemorySpeechInput) => Promise<boolean>) | undefined
   defineInvokeHandler(context, memorySpeechInput, input => speechInput ? speechInput(input) : false)
@@ -15,7 +15,7 @@ export function initializeMemoryConnection(context: ReturnType<typeof createCont
     const handler = handlers.get(request.kind === 'speech' ? 'speech' : 'conversation')
     return handler ? handler(request) : false
   })
-  installMemoryConnection(new MemoryConnectionClient({
+  const client = new MemoryConnectionClient({
     command: defineInvoke(context, memoryCommand),
     prepare: (referenceId, input, deadlineAt) => defineInvoke(context, memoryPrepare)({ referenceId, input, deadlineAt }),
     gate: (referenceId, kind) => defineInvoke(context, memoryGate)({ referenceId, kind }),
@@ -38,5 +38,12 @@ export function initializeMemoryConnection(context: ReturnType<typeof createCont
         await defineInvoke(context, memoryUnregisterHost)({ role })
       }
     },
-  }))
+  })
+  const uninstall = installMemoryConnection(client)
+  return () => {
+    client.dispose()
+    uninstall()
+    handlers.clear()
+    speechInput = undefined
+  }
 }

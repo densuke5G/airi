@@ -386,7 +386,7 @@ export class MemoryOwner {
   private async connect(): Promise<void> {
     if (!this.conversationHost || !this.speechHost) {
       this.snapshot.state = 'blocked'
-      this.snapshot.reason = 'capability_missing'
+      this.snapshot.reason = !this.conversationHost ? 'conversation_host_unavailable' : 'speech_host_unavailable'
       return
     }
     this.snapshot.state = 'connecting'

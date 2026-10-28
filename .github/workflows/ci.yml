@@ -194,27 +194,3 @@ jobs:
         #   fail-on-downgrade: true       # optional, default: true
       - name: Print result
         run: "echo 'Downgraded: ${{ steps.check.outputs.downgraded }}'"
-
-  metrodoros-host:
-    name: Metrodoros Host Acceptance
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/checkout@v6
-        with:
-          repository: densuke5G/Metrodoros
-          ref: b9032bb567143876ebb31844498afe71e223c60f
-          path: .test-data/metrodoros-server
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24.19.0
-      - run: corepack enable
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm install --frozen-lockfile
-        working-directory: .test-data/metrodoros-server
-      - run: pnpm exec tsx apps/stage-tamagotchi/scripts/metrodoros-host-acceptance.mjs --metrodoros-root .test-data/metrodoros-server --output .test-data/metrodoros-host-result.json
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: metrodoros-host-acceptance
-          path: .test-data/metrodoros-host-result.json

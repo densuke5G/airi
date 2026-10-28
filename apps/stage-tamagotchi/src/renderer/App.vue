@@ -82,7 +82,7 @@ const { language, themeColorsHue, themeColorsHueDynamic } = storeToRefs(settings
 const router = useRouter()
 const route = useRoute()
 const context = useElectronEventaContext()
-initializeMemoryConnection(context.value)
+const stopMemoryConnection = initializeMemoryConnection(context.value)
 const getMainLocale = useElectronEventaInvoke(i18nGetLocale)
 const setLocale = useElectronEventaInvoke(i18nSetLocale)
 const windowContext = resolveRendererWindowContext()
@@ -376,6 +376,7 @@ onUnmounted(() => {
   stopLeadershipListener?.()
   chatStore.dispose()
   fullStageRuntime?.dispose()
+  stopMemoryConnection()
 })
 </script>
 

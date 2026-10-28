@@ -124,6 +124,13 @@ export class MemoryConnectionClient implements MemoryConnection {
     })
   }
 
+  /** Retiring a renderer revokes every local policy before another client can install. */
+  dispose(): void {
+    for (const request of this.requests.values())
+      request.controller.abort()
+    this.requests.clear()
+  }
+
   registerSpeechHost(stop: (request: MemoryStopRequest) => Promise<boolean>, feed: (input: MemorySpeechInput) => Promise<boolean>): Promise<() => Promise<void>> {
     return this.transport.registerHost('speech', stop, feed)
   }
@@ -132,10 +139,14 @@ export class MemoryConnectionClient implements MemoryConnection {
 let connection: MemoryConnection | undefined
 
 /** Each application installs exactly one platform connection before mounting its stores. */
-export function installMemoryConnection(value: MemoryConnection): void {
+export function installMemoryConnection(value: MemoryConnection): () => void {
   if (connection && connection !== value)
     throw new Error('memory.connection_already_installed')
   connection = value
+  return () => {
+    if (connection === value)
+      connection = undefined
+  }
 }
 
 export function getMemoryConnection(): MemoryConnection {

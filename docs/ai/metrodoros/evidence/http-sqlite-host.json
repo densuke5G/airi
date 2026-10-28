@@ -1,0 +1,75 @@
+{
+  "schema": "08.1-host-acceptance/v1",
+  "realHttp": true,
+  "realSqlite": true,
+  "realAiriOwner": true,
+  "realModel": false,
+  "irodori": false,
+  "checks": {
+    "setup_target6_custom_io": {
+      "ok": true
+    },
+    "authenticated_connection_identity": {
+      "ok": true
+    },
+    "unauthenticated_connection_rejected": {
+      "ok": true
+    },
+    "owner_connected_to_real_service": {
+      "ok": true
+    },
+    "different_actor_refused": {
+      "ok": true
+    },
+    "real_identity_character_world_created": {
+      "ok": true
+    },
+    "owner_enabled_and_synchronized": {
+      "ok": true
+    },
+    "real_prepare": {
+      "ok": true
+    },
+    "owner_gate_actor_and_send": {
+      "ok": true
+    },
+    "speech_reports_routed": {
+      "ok": true
+    },
+    "dom_receipt_reported": {
+      "ok": true
+    },
+    "real_output_endpoint_responded": {
+      "ok": true
+    },
+    "real_output_commit": {
+      "ok": true
+    },
+    "display_unavailable_timeout_commits_without_receipt": {
+      "ok": true
+    },
+    "real_forget_accepted": {
+      "ok": true
+    },
+    "forget_stop_ack_both_hosts": {
+      "ok": true
+    },
+    "forget_checkpoint_advanced": {
+      "ok": true
+    },
+    "forgotten_turn_gate_denied": {
+      "ok": true
+    },
+    "host_stop_acknowledged_on_disconnect": {
+      "ok": true
+    },
+    "reconnect_identity_namespace_stable": {
+      "ok": true
+    },
+    "revoked_client_auth_rejected": {
+      "ok": true
+    }
+  },
+  "gaps": [],
+  "ok": true
+}

@@ -1,0 +1,51 @@
+{
+  "schema": "airi-08.1-irodori-electron-audio-acceptance/v1",
+  "status": "pass",
+  "evidence": {
+    "checks": {
+      "actualIrodoriRequests": true,
+      "twoSentenceChunking": true,
+      "requestsCompletedBeforeSynthesis": true,
+      "requestsCompletedBeforeSecondPlayback": true,
+      "firstPlaybackCompletedNormally": true,
+      "secondPlaybackStartedThenStopped": true,
+      "stopOwnerSettledWithNoActiveSource": true,
+      "wholeOutputNotCompleted": true,
+      "noPlaybackRejected": true,
+      "completedSynthesisRequestNotMisreportedAsAudioCompletion": true
+    },
+    "counts": {
+      "ttsRequests": 2,
+      "ttsResults": 2,
+      "segments": 2,
+      "requestCharacterCounts": [
+        30,
+        31
+      ],
+      "requestSentenceCounts": [
+        2,
+        2
+      ],
+      "playbackStarted": 2,
+      "playbackEnded": 1,
+      "playbackInterrupted": 1,
+      "playbackRejected": 0,
+      "activeAudioSourcesAfterStop": 0
+    },
+    "timingsMs": {
+      "elapsed": 11128,
+      "firstPlaybackDuration": 6840,
+      "secondPlaybackBeforeStop": 261,
+      "stopOwnerWait": 110,
+      "requestsCompleteBeforeSynthesisMs": 59
+    },
+    "statuses": {
+      "speechRequestsComplete": true,
+      "intentEnded": false,
+      "intentCanceled": true,
+      "audioCompleteForWholeOutput": false,
+      "stopOwner": "confirmed",
+      "runtime": "running"
+    }
+  }
+}

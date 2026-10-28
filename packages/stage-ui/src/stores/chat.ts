@@ -225,7 +225,7 @@ export const useChatStore = defineStore('chat', () => {
    */
   async function initialize(syncedPinia: SyncedPiniaRuntime) {
     if (syncedPinia.isLeader())
-      await registerMemoryHost()
+      void registerMemoryHost().catch(() => undefined)
     stopLeadershipListener ??= syncedPinia.onLeadershipChange((isLeader) => {
       if (!isLeader) {
         void stopMemoryHost?.().catch(() => undefined)

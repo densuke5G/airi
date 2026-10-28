@@ -1,5 +1,5 @@
 import type { MemoryTransport } from './connection'
-import type { MemoryPrepared, MemoryPrepareInput, MemoryStopRequest } from './contracts'
+import type { MemoryPrepared, MemoryPrepareInput } from './contracts'
 
 import { describe, expect, it, vi } from 'vitest'
 
@@ -21,7 +21,7 @@ function input(overrides: Partial<MemoryPrepareInput> = {}): MemoryPrepareInput 
     sessionId: 'session-a',
     userMessageId: 'user-a',
     attemptId: 'attempt-a',
-    deadlineAt: Date.now() + 5000,
+    deadlineAt: Date.now() + 500,
     model: 'model-a',
     providerId: 'provider-a',
     cardId: 'card-a',
@@ -95,7 +95,7 @@ describe('memoryConnectionClient acceptance', () => {
     const second = await client.prepare(input({ sessionId: 'session-b', userMessageId: 'user-b', attemptId: 'attempt-b' }), new AbortController().signal)
     await client.registerConversationHost(async () => true)
     // Capture the callback passed to the transport: it performs reference cancellation before host stop.
-    const registered = (wire.registerHost as ReturnType<typeof vi.fn>).mock.calls[0]![1] as (request: MemoryStopRequest) => Promise<boolean>
+    const registered = vi.mocked(wire.registerHost).mock.calls[0]![1]
     await registered({ kind: 'generation', sessionId: 'session-a', userMessageId: 'user-a', attemptId: 'attempt-a', referenceIds: [] })
     expect(first.signal?.aborted).toBe(true)
     expect(second.signal?.aborted).toBe(false)
@@ -110,5 +110,19 @@ describe('memoryConnectionClient acceptance', () => {
     expect(context.requestPolicy?.isCurrent()).toBe(false)
     expect(await context.requestPolicy?.beforeRequest('retry', new AbortController().signal)).toEqual({ allow: false })
     expect(wire.gate).not.toHaveBeenCalled()
+  })
+
+  it('revokes provider permission and cancels the reference when its renderer is disposed', async () => {
+    const wire = transport()
+    const client = new MemoryConnectionClient(wire)
+    const context = await client.prepare(input(), new AbortController().signal)
+    const referenceId = vi.mocked(wire.prepare).mock.calls[0]![0]
+    expect(await context.requestPolicy?.beforeRequest('initial', new AbortController().signal)).toEqual({ allow: true })
+    client.dispose()
+    expect(context.signal?.aborted).toBe(true)
+    expect(context.requestPolicy?.isCurrent()).toBe(false)
+    expect(await context.requestPolicy?.beforeRequest('retry', new AbortController().signal)).toEqual({ allow: false })
+    expect(wire.gate).toHaveBeenCalledTimes(1)
+    expect(wire.cancel).toHaveBeenCalledWith(referenceId)
   })
 })

@@ -32,7 +32,7 @@ export function initializeWebMemoryConnection(): void {
     },
     storage: async namespace => new IndexedDbStorage(`airi-metrodoros:${namespace}`),
   })
-  installMemoryConnection(new MemoryConnectionClient({
+  const client = new MemoryConnectionClient({
     command: command => owner.command(command),
     prepare: (referenceId, input, deadlineAt) => owner.prepare(actor, referenceId, input, deadlineAt),
     gate: (referenceId, kind) => owner.gate(actor, referenceId, kind),
@@ -44,8 +44,11 @@ export function initializeWebMemoryConnection(): void {
       return () => owner.unregisterHost(actor, role)
     },
     subscribe: listener => owner.subscribe(listener),
-  }))
+  })
+  const uninstall = installMemoryConnection(client)
   addEventListener('pagehide', () => {
+    client.dispose()
+    uninstall()
     void owner.dispose().catch(() => undefined)
   }, { once: true })
 }

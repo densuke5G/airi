@@ -300,6 +300,7 @@ pages:
       connection_required: 'Connect and verify the memory server first.'
       persona_binding_required: 'Map this AIRI Card to a character before approving its persona.'
       persona_unavailable: 'The character profile is unavailable. Refresh the connection and try again.'
+      conversation_host_unavailable: 'The conversation window is unavailable. Restore it before connecting.'
       speech_host_unavailable: 'The speech window is unavailable. Restore it before sending a message.'
     status:
       disabled: Memory is off
