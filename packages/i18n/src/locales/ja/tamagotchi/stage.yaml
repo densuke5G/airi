@@ -12,6 +12,18 @@ docs:
   'fade-on-hover':
     enable: 自動的に隠す
     disable: 常に表示
+  push-to-talk:
+    idle: 押して話す・離すと認識
+    starting: マイク準備中・押したままお待ちください
+    recording: 録音中・離すと認識
+    transcribing: 音声を認識中
+    cancelling: 録音を取り消し中
+  input-detection:
+    threshold: 発話検出の閾値
+    threshold-description: 上げると自動入力の誤反応を減らせます。小さな声も検出しにくくなります。音楽と声を分離する設定ではありません。
+    silence: 認識を開始するまでの無音時間
+    volume-fallback: 音量だけでも発話を検出する
+    volume-fallback-description: 音楽で録音が始まる場合はOFFにしてください。自動入力には発話検出モデルの動作が必要です。
   'open-settings': 設定を開く
   'open-chat': チャットを開く
   'refresh': 再読み込み

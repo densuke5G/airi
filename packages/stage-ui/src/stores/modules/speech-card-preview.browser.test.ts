@@ -101,3 +101,78 @@ it.each(['completed', 'unmounted', 'replaced'])('isolates card preview responses
     localStorage.clear()
   }
 })
+
+it('saves manual voice IDs and restores them when switching characters and reloading stores', async () => {
+  localStorage.clear()
+  vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => Response.json({ voices: [], data: [] })))
+  const pinia = createPinia()
+  const i18n = createI18n({ legacy: false, locale: 'en', messages: { en } })
+  const cardId = ref('')
+  const container = document.createElement('div')
+  document.body.append(container)
+  const app = createApp({ setup() {
+    useSpeechStore()
+    return () => h(CardEditor, { cardId: cardId.value, initialSection: 'modules' })
+  } })
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: CardEditor }] })
+  app.use(pinia).use(PiniaColada).use(MotionPlugin).use(i18n).use(router).mount(container)
+  let reloadedApp: ReturnType<typeof createApp> | undefined
+  let reloadedPinia: ReturnType<typeof createPinia> | undefined
+  try {
+    await router.push('/')
+    await router.isReady()
+    const provider = 'openai-compatible-audio-speech'
+    await useProviderConfigStore(pinia).ensureProvider(provider, provider, { apiKey: 'local-test', baseUrl: 'https://voices.invalid/v1/' })
+    const speech = useSpeechStore(pinia)
+    await speech.selectProviderModel(provider, 'irodori-tts', 'global-voice')
+    const cards = useAiriCardStore(pinia)
+    await cards.initialize()
+    async function character(name: string, voiceId: string) {
+      return cards.addCard({
+        name,
+        version: '1.0',
+        description: 'Test companion',
+        extensions: { airi: { modules: { speech: { provider, model: 'irodori-tts', voice_id: voiceId } } } },
+      }, 'scratch')
+    }
+    const first = await character('First', 'KonomiKohara')
+    const second = await character('Second', 'second-voice')
+    cardId.value = first
+    await vi.waitFor(() => expect(container.querySelector<HTMLInputElement>('[data-testid="card-speech-voice-id"] input')?.value).toBe('KonomiKohara'))
+    const input = container.querySelector<HTMLInputElement>('[data-testid="card-speech-voice-id"] input')!
+    input.value = 'KonomiKoharaWav'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    const save = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.trim() === i18n.global.t('settings.pages.card.save'))!
+    save.click()
+    await vi.waitFor(() => expect(cards.getCard(first)?.extensions.airi.modules.speech.voice_id).toBe('KonomiKoharaWav'))
+    await cards.activateCard(first)
+    expect(speech.activeSpeechVoiceId).toBe('KonomiKoharaWav')
+    await cards.activateCard(second)
+    expect(speech.activeSpeechVoiceId).toBe('second-voice')
+    await cards.activateCard(first)
+    expect(speech.activeSpeechVoiceId).toBe('KonomiKoharaWav')
+    app.unmount()
+    disposePinia(pinia)
+    reloadedPinia = createPinia()
+    reloadedApp = createApp({ setup() {
+      useSpeechStore()
+      useAiriCardStore()
+      return () => null
+    } }).use(reloadedPinia).use(PiniaColada).use(i18n)
+    reloadedApp.mount(document.createElement('div'))
+    const reloadedCards = useAiriCardStore(reloadedPinia)
+    await reloadedCards.initialize()
+    expect(reloadedCards.activeCardId).toBe(first)
+    expect(useSpeechStore(reloadedPinia).activeSpeechVoiceId).toBe('KonomiKoharaWav')
+  }
+  finally {
+    app.unmount()
+    disposePinia(pinia)
+    reloadedApp?.unmount()
+    if (reloadedPinia)
+      disposePinia(reloadedPinia)
+    container.remove()
+    vi.unstubAllGlobals()
+    localStorage.clear()
+  }
+})

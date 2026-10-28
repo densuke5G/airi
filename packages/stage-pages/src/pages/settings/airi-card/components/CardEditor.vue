@@ -213,6 +213,11 @@ const speechModelOptions = computed(() => {
   })), selectedSpeechModel.value)
 })
 
+const usesManualSpeechVoice = computed(() => {
+  const provider = selectedSpeechProvider.value || speechProvider.value
+  return providersStore.findProviderDefinition(provider)?.id === 'openai-compatible-audio-speech'
+})
+
 // Computed: available speech voices options
 const speechVoiceOptions = computed(() => {
   const provider = selectedSpeechProvider.value || speechProvider.value
@@ -1007,7 +1012,15 @@ function handleBack() {
                     <label :class="moduleFieldLabelClasses">
                       {{ t('settings.pages.card.speech.voice') }}
                     </label>
+                    <FieldInput
+                      v-if="usesManualSpeechVoice"
+                      v-model="selectedSpeechVoiceId"
+                      :description="t('settings.pages.card.speech.voice-id-description')"
+                      :placeholder="getDefaultPlaceholder()"
+                      data-testid="card-speech-voice-id"
+                    />
                     <ComboboxSelect
+                      v-else
                       v-model="speechVoiceSelection"
                       :options="speechVoiceOptions"
                       :placeholder="getDefaultPlaceholder()"

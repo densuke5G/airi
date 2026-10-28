@@ -113,6 +113,9 @@ interface HearingTranscriptionInvokeOptions {
 }
 
 interface MediaStreamTranscriptionOptions extends StreamingTranscriptionConsumer {
+  /** Starts immediately and keeps one session until the caller releases Push-to-talk. @default false */
+  manual?: boolean
+  vad?: Pick<NonNullable<Parameters<typeof useVAD>[1]>, 'threshold' | 'minSilenceDurationMs'>
   sampleRate?: number
   providerOptions?: Record<string, unknown>
   idleTimeoutMs?: number
@@ -616,6 +619,7 @@ export const useHearingSpeechInputPipeline = defineStore('modules:hearing:speech
     trackVoiceInputStarted,
   } = useAnalytics()
   const streamingSession = shallowRef<{
+    manual?: boolean
     audioContext?: AudioContext
     workletNode?: AudioWorkletNode
     mediaStreamSource?: MediaStreamAudioSourceNode
@@ -753,6 +757,8 @@ export const useHearingSpeechInputPipeline = defineStore('modules:hearing:speech
       return
     }
 
+    if (session.workletNode)
+      session.workletNode.port.onmessage = null
     try {
       const reason = new DOMException(abort ? 'Aborted' : 'Stopped', 'AbortError')
       // Ensure provider transports (e.g., Aliyun NLS) are signaled to stop over websocket.
@@ -809,6 +815,8 @@ export const useHearingSpeechInputPipeline = defineStore('modules:hearing:speech
     if (!session)
       return
 
+    if (session.workletNode)
+      session.workletNode.port.onmessage = null
     try {
       session.audioStreamController?.close()
     }
@@ -830,6 +838,12 @@ export const useHearingSpeechInputPipeline = defineStore('modules:hearing:speech
       }
     }
     finally {
+      if (session.mediaStreamSource && session.workletNode && session.audioContext) {
+        session.workletNode.port.onmessage = null
+        session.mediaStreamSource.disconnect()
+        session.workletNode.disconnect()
+        await session.audioContext.close()
+      }
       if (finishingSession.value === session)
         finishingSession.value = undefined
       if (streamingSession.value === session)
@@ -842,6 +856,8 @@ export const useHearingSpeechInputPipeline = defineStore('modules:hearing:speech
     finishingSession.value = undefined
     const vadSession = streamingVadSession.value
     const realtimeSession = streamingSession.value
+    if (!abort && realtimeSession?.manual)
+      return await finishRealtimeTranscription()
     if (vadSession) {
       streamingVadSession.value = undefined
       vadSession.vad.dispose()
@@ -950,26 +966,25 @@ export const useHearingSpeechInputPipeline = defineStore('modules:hearing:speech
     })()
   }
 
-  async function startVadRealtimeTranscription(
+  async function startRealtimeTranscription(
     providerId: string,
     options: MediaStreamTranscriptionOptions,
-    vadSession: NonNullable<typeof streamingVadSession.value>,
-    segment: VadSpeechSegment,
+    audioStream: ReadableStream<Uint8Array>,
+    audioStreamController: ReadableStreamDefaultController<Uint8Array> | undefined,
+    callbacks: StreamingTranscriptionCallbacks,
   ) {
-    const provider = await providersStore.getProviderInstance<TranscriptionProviderWithExtraOptions<string, any>>(providerId)
+    const provider = await providersStore.getProviderInstance<TranscriptionProviderWithExtraOptions<string, Record<string, unknown>>>(providerId)
     if (!provider)
       throw new Error('Failed to initialize speech provider')
 
     error.value = undefined
     const abortController = new AbortController()
     const session: NonNullable<typeof streamingSession.value> = {
-      audioStreamController: undefined as ReadableStreamDefaultController<Uint8Array> | undefined,
+      audioStreamController,
       abortController,
       providerId,
-      callbacks: vadSession.callbacks,
+      callbacks,
     }
-    const audioStream = createVadAudioStream(segment)
-    session.audioStreamController = segment.audioStreamController
     streamingSession.value = session
     startStreamingAsrSpan(providerId)
 
@@ -994,6 +1009,50 @@ export const useHearingSpeechInputPipeline = defineStore('modules:hearing:speech
     consumeRealtimeTranscriptionResult(session, result)
   }
 
+  async function startManualStreamingTranscription(stream: MediaStream, providerId: string, options: MediaStreamTranscriptionOptions) {
+    const audioContext = new AudioContext({ sampleRate: options.sampleRate ?? 16000 })
+    let source: MediaStreamAudioSourceNode | undefined
+    let worklet: AudioWorkletNode | undefined
+    let controller: ReadableStreamDefaultController<Uint8Array> | undefined
+    try {
+      await audioContext.audioWorklet.addModule(vadWorkletUrl)
+      source = audioContext.createMediaStreamSource(stream)
+      worklet = new AudioWorkletNode(audioContext, 'vad-audio-worklet-processor')
+      const audioStream = new ReadableStream<Uint8Array>({
+        start(value) {
+          controller = value
+        },
+      })
+      worklet.port.onmessage = (event: MessageEvent<{ buffer: Float32Array }>) => {
+        if (controller)
+          controller.enqueue(new Uint8Array(toPCM16FromFloat32(event.data.buffer).buffer))
+      }
+      source.connect(worklet)
+      // The worklet outputs silence. Connecting it keeps capture running without microphone playback.
+      worklet.connect(audioContext.destination)
+      await audioContext.resume()
+      await startRealtimeTranscription(providerId, options, audioStream, controller, streamingCallbacks)
+      const session = streamingSession.value
+      if (!session)
+        throw new Error('Manual transcription session did not start')
+      session.manual = true
+      session.audioContext = audioContext
+      session.mediaStreamSource = source
+      session.workletNode = worklet
+      session.mediaStream = stream
+    }
+    catch (cause) {
+      if (worklet) {
+        worklet.port.onmessage = null
+        worklet.disconnect()
+      }
+      source?.disconnect()
+      await audioContext.close()
+      await stopRealtimeTranscription(streamingSession.value, true)
+      throw cause
+    }
+  }
+
   async function startVadStreamingTranscription(
     stream: MediaStream,
     providerId: string,
@@ -1001,6 +1060,7 @@ export const useHearingSpeechInputPipeline = defineStore('modules:hearing:speech
   ) {
     let vadSession!: NonNullable<typeof streamingVadSession.value>
     const vad = useVAD(vadWorkletUrl, {
+      ...options.vad,
       onSpeechStart: () => {
         const segment: VadSpeechSegment = { audioChunks: [] }
         vadSession.activeSegment = segment
@@ -1017,7 +1077,10 @@ export const useHearingSpeechInputPipeline = defineStore('modules:hearing:speech
       },
     })
     const lifecycle = createVadStreamingSession<VadSpeechSegment>({
-      start: async segment => await startVadRealtimeTranscription(providerId, options, vadSession, segment),
+      start: async (segment) => {
+        const audioStream = createVadAudioStream(segment)
+        await startRealtimeTranscription(providerId, options, audioStream, segment.audioStreamController, vadSession.callbacks)
+      },
       stop: async () => {
         await finishRealtimeTranscription()
       },
@@ -1277,7 +1340,7 @@ export const useHearingSpeechInputPipeline = defineStore('modules:hearing:speech
         await stopStreamingTranscriptionNow(false, streamingSession.value.providerId)
 
       const existingVadSession = streamingVadSession.value
-      if (existingVadSession) {
+      if (existingVadSession && !options.manual) {
         if (existingVadSession.providerId !== providerId || existingVadSession.stream !== stream) {
           console.info('[Hearing Pipeline] Provider or microphone stream changed, restarting VAD detection')
           await stopStreamingTranscriptionNow(false, existingVadSession.providerId)
@@ -1288,7 +1351,13 @@ export const useHearingSpeechInputPipeline = defineStore('modules:hearing:speech
         }
       }
 
-      await startVadStreamingTranscription(stream, providerId, options)
+      if (options.manual) {
+        await stopStreamingTranscriptionNow(true)
+        await startManualStreamingTranscription(stream, providerId, options)
+      }
+      else {
+        await startVadStreamingTranscription(stream, providerId, options)
+      }
     }
     catch (err) {
       if (consumerRegistered)

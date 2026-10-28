@@ -184,7 +184,7 @@ live2d:
     sdk-preset-preserved-notice: >
       無効化しても SDK の表情およびまばたきプリセットは保持されます。
     no-expression: このモデルで利用可能な表情はありません。
-    llm-integration-wip: LLM 統合エンジンは未完了です。
+    llm-integration-ready: 会話の感情指定から、許可した表情へ自動で切り替えます。発話が終わるまで維持し、音声なしの場合は6秒後に元へ戻ります。
     save-default: デフォルトの表情を保存
     reset: すべての表情をリセット
     expose-to-llm-toggle: LLM へのアクセスを許可
@@ -380,6 +380,7 @@ pages:
       provider: 音声 / プロバイダー
       model: 発話/モデル
       voice: 発話/音声
+      voice-id-description: 音声サーバーの声ID（例：KonomiKohara）を入力します。空欄なら共通の声を使います。
     systemprompt: システムプロンプト
     title: AIRIカード
     try_different_search: 別の検索ワードを試してください

@@ -1,9 +1,5 @@
 <script setup lang="ts">
-import { computedAsync } from '@vueuse/core'
-import { storeToRefs } from 'pinia'
-import { computed, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, ref, watch } from 'vue'
 
 import {
   ProviderAdvancedSettings,
@@ -13,62 +9,79 @@ import {
   ProviderSettingsContainer,
   ProviderSettingsLayout,
 } from '.'
-import { selectProviderMetadata } from '../../../libs/providers/metadata'
+import { useProviderValidation } from '../../../composables/use-provider-validation'
 import { useProviderConfigStore } from '../../../stores/providers/config'
 import { useProviderStore } from '../../../stores/providers/provider'
 
 const props = defineProps<{
   providerId: string
-  // Default model to use if not specified in provider settings
   defaultModel?: string
-  // Additional provider-specific settings
-  additionalSettings?: Record<string, any>
+  additionalSettings?: Record<string, unknown>
   placeholder?: string
 }>()
 
-const { t } = useI18n()
-const router = useRouter()
+const { t, router, providerMetadata } = useProviderValidation(props.providerId)
 const providersStore = useProviderStore()
 const providerStore = useProviderConfigStore()
-const { configs: providers } = storeToRefs(providerStore)
+const keyDraft = ref('')
+const urlDraft = ref('')
+let pendingWrites = 0
+let saveQueue = Promise.resolve()
 
-const providerMetadata = computedAsync(async () => {
-  const definition = providersStore.getProviderDefinition(props.providerId)
-  return await selectProviderMetadata(definition, t, { id: props.providerId })
-}, undefined)
+function reconcileSettings() {
+  if (pendingWrites)
+    return
+  const config = providerStore.getProviderConfig(props.providerId)
+  keyDraft.value = typeof config?.apiKey === 'string' ? config.apiKey : ''
+  urlDraft.value = typeof config?.baseUrl === 'string' ? config.baseUrl : ''
+}
 
-// Common provider settings
+// Snapshots only update the form. User edits persist through the leader action.
+watch(() => providerStore.getProviderConfig(props.providerId), reconcileSettings, { deep: true, immediate: true })
+
+function persistSettings(patch: Record<string, unknown>) {
+  pendingWrites++
+  saveQueue = saveQueue.then(async () => {
+    await providersStore.initializeProvider(props.providerId)
+    const saved = await providerStore.patchProviderConfig(props.providerId, patch)
+    if (!saved)
+      throw new Error('The transcription provider no longer exists')
+  }).catch(() => {
+    console.error('Failed to save transcription settings')
+  }).finally(() => {
+    pendingWrites--
+    reconcileSettings()
+  })
+  return saveQueue
+}
+
 const apiKey = computed({
-  get: () => providers.value[props.providerId]?.apiKey as string | undefined || '',
-  set: (value) => {
-    if (!providers.value[props.providerId])
-      providers.value[props.providerId] = {}
-
-    providers.value[props.providerId].apiKey = value
+  get: () => keyDraft.value,
+  set: (value: string) => {
+    keyDraft.value = value
+    void persistSettings({ apiKey: value })
   },
 })
-
 const baseUrl = computed({
-  get: () => providers.value[props.providerId]?.baseUrl as string | undefined || providerMetadata.value?.defaultConfig.baseUrl as string | undefined || '',
-  set: (value) => {
-    if (!providers.value[props.providerId])
-      providers.value[props.providerId] = {}
-
-    providers.value[props.providerId].baseUrl = value
+  get: () => urlDraft.value,
+  set: (value: string) => {
+    urlDraft.value = value
+    void persistSettings({ baseUrl: value })
   },
 })
 
 onMounted(async () => {
   await providersStore.initializeProvider(props.providerId)
-
-  // Initialize refs with current values
-  apiKey.value = providers.value[props.providerId]?.apiKey as string | undefined || ''
-  baseUrl.value = providers.value[props.providerId]?.baseUrl as string | undefined || providerMetadata.value?.defaultConfig.baseUrl as string | undefined || ''
+  if (props.defaultModel)
+    await providerStore.setProviderModelIfUnset(props.providerId, props.defaultModel)
+  reconcileSettings()
 })
 
-function handleResetTranscriptionSettings() {
-  apiKey.value = ''
-  baseUrl.value = providerMetadata.value?.defaultConfig.baseUrl as string | undefined || ''
+async function handleResetTranscriptionSettings() {
+  const defaultUrl = providerMetadata.value?.defaultConfig.baseUrl
+  keyDraft.value = ''
+  urlDraft.value = typeof defaultUrl === 'string' ? defaultUrl : ''
+  await persistSettings({ apiKey: '', baseUrl: urlDraft.value })
 }
 </script>
 

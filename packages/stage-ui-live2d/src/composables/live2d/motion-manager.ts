@@ -1,4 +1,4 @@
-import type { Cubism4InternalModel, InternalModel } from 'pixi-live2d-display/cubism4'
+import type { Cubism4InternalModel, Cubism4MotionManager, InternalModel } from 'pixi-live2d-display/cubism4'
 import type { Ref } from 'vue'
 
 import type { Live2DBreathControlState, Live2DMotionControlState } from '../../stores/motion-control'
@@ -66,6 +66,44 @@ export interface UseLive2DMotionManagerUpdateOptions {
  */
 export function disableLive2DSdkBreath(internalModel: { breath?: unknown }) {
   delete internalModel.breath
+}
+
+/**
+ * Keeps the selected idle motion in its SDK queue across loop boundaries.
+ * Selection changes restore the previous motion's loop settings.
+ */
+export function useMotionUpdatePluginRuntimeMotionLoop(
+  selection: () => { group: string, index: number } | undefined,
+): MotionManagerPlugin {
+  let activeMotion: ReturnType<Cubism4MotionManager['createMotion']> | undefined
+  let originalLoop = false
+  let originalLoopFadeIn = true
+
+  return (ctx) => {
+    const selected = selection()
+    const motion = ctx.live2dIdleAnimationEnabled.value && selected
+      ? ctx.motionManager.motionGroups[selected.group]?.[selected.index]
+      : undefined
+    if (motion === activeMotion)
+      return
+
+    if (activeMotion) {
+      activeMotion.setIsLoop(originalLoop)
+      activeMotion.setIsLoopFadeIn(originalLoopFadeIn)
+    }
+    activeMotion = motion ?? undefined
+    if (!activeMotion)
+      return
+
+    originalLoop = activeMotion.isLoop()
+    originalLoopFadeIn = activeMotion.isLoopFadeIn()
+    // NOTICE:
+    // Restarting a finite idle repeats its fades and produces a head-speed spike.
+    // pixi-live2d-display/dist/cubism4.es.js leaves CubismMotion._isLoop false after parsing Meta.Loop.
+    // Remove this override when the adapter supports selected runtime loops without queue restarts.
+    activeMotion.setIsLoop(true)
+    activeMotion.setIsLoopFadeIn(false)
+  }
 }
 
 /**
@@ -261,7 +299,7 @@ export function useMotionUpdatePluginIdleDisable(idleEyeFocus = useLive2DIdleEye
     if (!ctx.live2dIdleAnimationEnabled.value && ctx.isIdleMotion) {
       ctx.motionManager.stopAllMotions()
 
-      if (ctx.live2dForceIdleEyeAnimation.value && (!ctx.live2dEyeTrackingEnabled.value || !ctx.live2dEyeFocusSourceActive.value))
+      if (ctx.live2dForceIdleEyeAnimation.value && !ctx.live2dEyeTrackingEnabled.value)
         idleEyeFocus.update(ctx.internalModel, ctx.now)
       if (ctx.internalModel.eyeBlink != null) {
         ctx.internalModel.eyeBlink.updateParameters(ctx.model, ctx.timeDelta / 1000)
@@ -282,10 +320,22 @@ export function useMotionUpdatePluginIdleFocus(idleEyeFocus = useLive2DIdleEyeFo
       return
     if (!ctx.live2dForceIdleEyeAnimation.value)
       return
-    if (ctx.live2dEyeTrackingEnabled.value && ctx.live2dEyeFocusSourceActive.value)
+    if (ctx.live2dEyeTrackingEnabled.value)
       return
 
     idleEyeFocus.update(ctx.internalModel, ctx.now)
+  }
+}
+
+/** Clears idle gaze offsets before the SDK adds cursor focus. Register before expressions and manual controls in the final phase. */
+export function useMotionUpdatePluginCursorFocus(): MotionManagerPlugin {
+  return (ctx) => {
+    if (!ctx.isIdleMotion || !ctx.live2dEyeTrackingEnabled.value)
+      return
+
+    // SDK motions can leave a previous idle saccade in the saved parameter baseline.
+    ctx.model.setParameterValueById('ParamEyeBallX', 0)
+    ctx.model.setParameterValueById('ParamEyeBallY', 0)
   }
 }
 

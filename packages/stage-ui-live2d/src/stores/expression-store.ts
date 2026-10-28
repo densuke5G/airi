@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
+import * as v from 'valibot'
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -108,6 +110,25 @@ function persistenceKey(modelId: string): string {
   return `expression-defaults:${modelId}`
 }
 
+const llmPolicySchema = v.object({
+  mode: v.picklist(['all', 'none', 'custom']),
+  exposed: v.record(v.string(), v.boolean()),
+})
+
+function loadLlmPolicy(id: string) {
+  try {
+    const raw = localStorage.getItem(`expression-llm-policy:${id}`)
+    if (!raw)
+      return undefined
+    const parsed = v.safeParse(llmPolicySchema, JSON.parse(raw))
+    return parsed.success ? parsed.output : undefined
+  }
+  catch {
+    // Missing or invalid storage cannot grant expression access.
+    return undefined
+  }
+}
+
 function loadPersistedDefaults(modelId: string): Record<string, number> | null {
   try {
     const raw = localStorage.getItem(persistenceKey(modelId))
@@ -180,10 +201,8 @@ export const useExpressionStore = defineStore('live2d-expressions', () => {
   }
 
   function isGroupActive(group: ExpressionGroupDefinition): boolean {
-    return group.parameters.some((parameter) => {
-      if (parameter.value === 0)
-        return false
-
+    // Shared values, including a normally open eye, cannot identify an expression alone.
+    return group.parameters.length > 0 && group.parameters.every((parameter) => {
       const entry = expressions.value.get(parameter.parameterId)
       return entry != null && entry.currentValue === parameter.value
     })
@@ -217,6 +236,18 @@ export const useExpressionStore = defineStore('live2d-expressions', () => {
     // Register expression groups
     for (const group of groups) {
       expressionGroups.value.set(group.name, group)
+    }
+
+    // Saved permissions belong to this model. Runtime disposal clears the
+    // current maps, while the next load restores the user's saved choice.
+    const policy = loadLlmPolicy(id)
+    llmMode.value = policy?.mode ?? 'none'
+    llmExposed.value = new Map()
+    if (policy) {
+      for (const [name, exposed] of Object.entries(policy.exposed)) {
+        if (expressionGroups.value.has(name))
+          llmExposed.value.set(name, exposed)
+      }
     }
 
     // Register individual parameter entries
@@ -274,7 +305,8 @@ export const useExpressionStore = defineStore('live2d-expressions', () => {
       for (const param of resolved.group.parameters) {
         const entry = expressions.value.get(param.parameterId)
         if (entry) {
-          applyValue(entry, numericValue, duration)
+          const targetValue = entry.modelDefault + (param.value - entry.modelDefault) * numericValue
+          applyValue(entry, targetValue, duration)
           states.push(toState(entry))
         }
       }
@@ -335,9 +367,6 @@ export const useExpressionStore = defineStore('live2d-expressions', () => {
     }
 
     if (resolved.kind === 'group') {
-      // A group is "active" when at least one of its non-zero (activation)
-      // params is currently set to the exp3 value.  Zero-valued params are
-      // "reset" instructions and are excluded from the active check.
       const isActive = isGroupActive(resolved.group)
       const states: ExpressionState[] = []
       for (const param of resolved.group.parameters) {
@@ -405,10 +434,28 @@ export const useExpressionStore = defineStore('live2d-expressions', () => {
 
   function setLlmMode(mode: Live2DExpressionLlmMode) {
     llmMode.value = mode
+    saveLlmPolicy()
   }
 
   function setLlmExposed(name: string, value: boolean) {
+    if (!expressionGroups.value.has(name))
+      return
     llmExposed.value.set(name, value)
+    saveLlmPolicy()
+  }
+
+  function saveLlmPolicy() {
+    if (!modelId.value)
+      return
+    try {
+      localStorage.setItem(`expression-llm-policy:${modelId.value}`, JSON.stringify({
+        mode: llmMode.value,
+        exposed: Object.fromEntries(llmExposed.value),
+      }))
+    }
+    catch (error) {
+      console.warn('[expression-store] Failed to persist LLM exposure:', error)
+    }
   }
 
   /** Check if a specific expression group is exposed to LLM tools. */

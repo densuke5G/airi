@@ -22,6 +22,9 @@ export const useSettingsAudioDevice = defineStore('settings-audio-devices', () =
 
   const selectedAudioInputPersist = useLocalStorageManualReset<string>('settings/audio/input', selectedAudioInputNonPersist.value)
   const audioInputEnabled = useLocalStorageManualReset<boolean>('settings/audio/input/enabled', false)
+  const speechThreshold = useLocalStorageManualReset<number>('settings/audio/input/speech-threshold', 0.52)
+  const minSilenceDurationMs = useLocalStorageManualReset<number>('settings/audio/input/min-silence-ms', 1200)
+  const volumeFallbackEnabled = useLocalStorageManualReset<boolean>('settings/audio/input/volume-fallback-enabled', true)
   // Retain device failures after input is disabled so the Stage can explain them.
   const error = ref<string>()
   let audioInputStartGeneration = 0
@@ -169,6 +172,9 @@ export const useSettingsAudioDevice = defineStore('settings-audio-devices', () =
     selectedAudioInputPersist.reset()
     selectedAudioInputNonPersist.value = ''
     audioInputEnabled.reset()
+    speechThreshold.value = 0.52
+    minSilenceDurationMs.value = 1200
+    volumeFallbackEnabled.value = true
     stopStream()
   }
 
@@ -180,6 +186,9 @@ export const useSettingsAudioDevice = defineStore('settings-audio-devices', () =
     permissionGranted,
     selectedAudioInput: selectedAudioInputPersist,
     enabled: audioInputEnabled,
+    speechThreshold,
+    minSilenceDurationMs,
+    volumeFallbackEnabled,
 
     stream,
 

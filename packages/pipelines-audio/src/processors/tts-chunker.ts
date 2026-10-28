@@ -23,6 +23,22 @@ export interface TtsInputChunk {
 
 export interface TtsInputChunkOptions {
   /**
+   * Wait for input closure and emit all speech text as one chunk.
+   * Special markers run after the speech chunk. Flush markers do not split it.
+   * @default false
+   */
+  wholeResponse?: boolean
+  /**
+   * Group complete sentences before synthesis. Only sentence boundaries can split text.
+   * Short final text is emitted when input closes. Special markers follow their speech chunk.
+   * @default undefined
+   */
+  sentenceChunking?: {
+    minChars: number
+    maxChars: number
+    sentences: number
+  }
+  /**
    * How many opening chunks may end at soft punctuation instead of waiting for a sentence end.
    *
    * This lowers the time to the first audio. A boost chunk still has to reach `minimumWords`:
@@ -72,6 +88,79 @@ export async function* chunkTtsInput(
   )
 
   const segmenter = new Intl.Segmenter(undefined, { granularity: 'word' }) // I love Intl.Segmenter
+
+  if (options?.wholeResponse) {
+    let text = ''
+    let specialCount = 0
+    for await (const value of iterator) {
+      if (value === TTS_SPECIAL_TOKEN)
+        specialCount++
+      else if (value !== TTS_FLUSH_INSTRUCTION)
+        text += value
+    }
+    text = text.trim()
+    if (text) {
+      yield {
+        text,
+        words: [...segmenter.segment(text)].filter(word => word.isWordLike).length,
+        reason: 'flush',
+      }
+    }
+    for (let index = 0; index < specialCount; index++)
+      yield { text: '', words: 0, reason: 'special' }
+    return
+  }
+
+  if (options?.sentenceChunking) {
+    const limits = options.sentenceChunking
+    const sentenceEndings = new Set('。！？.!?\n\r')
+    let text = ''
+    let characters = 0
+    let sentences = 0
+    let specialCount = 0
+    let previousWasEnding = false
+    for await (const value of iterator) {
+      if (value === TTS_SPECIAL_TOKEN) {
+        specialCount++
+        continue
+      }
+      if (value === TTS_FLUSH_INSTRUCTION)
+        continue
+
+      text += value
+      if (value.trim())
+        characters++
+      const ending = sentenceEndings.has(value) || value === '\r\n'
+      if (ending && !previousWasEnding)
+        sentences++
+      previousWasEnding = ending
+
+      if (ending && characters >= limits.minChars && (sentences >= limits.sentences || characters >= limits.maxChars)) {
+        yield {
+          text: text.trim(),
+          words: [...segmenter.segment(text)].filter(word => word.isWordLike).length,
+          reason: 'hard',
+        }
+        for (let index = 0; index < specialCount; index++)
+          yield { text: '', words: 0, reason: 'special' }
+        text = ''
+        characters = 0
+        sentences = 0
+        specialCount = 0
+      }
+    }
+    text = text.trim()
+    if (text) {
+      yield {
+        text,
+        words: [...segmenter.segment(text)].filter(word => word.isWordLike).length,
+        reason: 'flush',
+      }
+    }
+    for (let index = 0; index < specialCount; index++)
+      yield { text: '', words: 0, reason: 'special' }
+    return
+  }
 
   let yieldCount = 0
   let buffer = ''

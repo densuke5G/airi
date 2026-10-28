@@ -23,7 +23,8 @@ export interface Live2DEyeFocusSource {
  * - The canvas element exposes a client rect in that same coordinate space.
  *
  * Returns:
- * - A computed focus point suitable for `Live2DModel.focus(x, y)`.
+ * - A canvas render point suitable for `Live2DModel.focus(x, y)` while cursor input is available.
+ * - `undefined` releases cursor focus so the model can return to its neutral pose.
  */
 export function useLive2DEyeFocusFor(options: {
   canvas: MaybeRefOrGetter<HTMLCanvasElement | undefined>
@@ -33,7 +34,7 @@ export function useLive2DEyeFocusFor(options: {
     modelHeight: number
   }>
   source: MaybeRefOrGetter<Live2DEyeFocusSource | null | undefined>
-}): ComputedRef<{ x: number, y: number }> {
+}): ComputedRef<{ x: number, y: number } | undefined> {
   const { live2dRenderScale, live2dModelEyeOffset } = storeToRefs(useSettingsLive2d())
   const { scale } = useL2dViewControl()
 
@@ -42,9 +43,8 @@ export function useLive2DEyeFocusFor(options: {
     const renderScale = live2dRenderScale.value
     const trackingSource = toValue(options.source)
     const canvasRect = toValue(options.canvas)?.getBoundingClientRect()
-    if (!trackingSource || !(canvasRect)) {
-      return { x: 1000, y: 1000 }
-    }
+    if (!trackingSource || !canvasRect)
+      return undefined
     const eyeOffset = {
       x: live2dModelEyeOffset.value.x / 100 * modelWidth * normalizedScale * scale.value,
       y: live2dModelEyeOffset.value.y / 100 * modelHeight * normalizedScale * scale.value,

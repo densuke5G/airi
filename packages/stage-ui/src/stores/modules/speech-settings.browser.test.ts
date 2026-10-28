@@ -171,3 +171,42 @@ it('shows a manual model transport failure in the settings page', async () => {
   expect(follower.container.textContent).toContain('Model selection transport unavailable')
   expect(leader.speech.activeSpeechModel).toBe('tts-1')
 })
+
+// User report in this chat: a character voice resets after returning to settings.
+// ROOT CAUSE:
+// Page initialization reapplies provider defaults over an explicit character selection.
+// Keep the current model and voice when filling missing provider defaults.
+it('preserves character voices across settings mounts and follower provider changes', async () => {
+  localStorage.clear()
+  vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => Response.json({ voices: [], data: [] })))
+  const namespace = `speech-settings-voices:${crypto.randomUUID()}`
+  const leader = mountRenderer(namespace)
+  await vi.waitFor(() => expect(leader.runtime.isLeader()).toBe(true))
+  const provider = 'openai-compatible-audio-speech'
+  await useProviderConfigStore(leader.pinia).ensureProvider(provider, provider, {
+    apiKey: 'local-test',
+    baseUrl: 'https://voices.invalid/v1/',
+    model: 'provider-model',
+    voice: 'provider-voice',
+  })
+  await useProviderStore(leader.pinia).forceProviderConfigured(provider)
+  await leader.speech.selectProviderModel(provider, 'irodori-tts', 'KonomiKohara')
+  let discoveryCompleted = 0
+  useProviderStore(leader.pinia).$onAction(({ name, after }) => {
+    if (name === 'loadModelsForConfiguredProviders')
+      after(() => discoveryCompleted++)
+  })
+  const follower = mountRenderer(namespace, SpeechSettings)
+  await vi.waitFor(() => expect(discoveryCompleted).toBeGreaterThan(0))
+  await new Promise(resolve => setTimeout(resolve, 150))
+  expect(leader.speech.activeSpeechModel).toBe('irodori-tts')
+  expect(leader.speech.activeSpeechVoiceId).toBe('KonomiKohara')
+  await leader.speech.selectProviderModel('speech-noop', '')
+  await vi.waitFor(() => expect(follower.speech.activeSpeechProvider).toBe('speech-noop'))
+  const previousDiscovery = discoveryCompleted
+  await leader.speech.selectProviderModel(provider, 'irodori-tts', 'KonomiKoharaWav')
+  await vi.waitFor(() => expect(discoveryCompleted).toBeGreaterThan(previousDiscovery))
+  await new Promise(resolve => setTimeout(resolve, 150))
+  expect(leader.speech.activeSpeechVoiceId).toBe('KonomiKoharaWav')
+  await vi.waitFor(() => expect(follower.speech.activeSpeechVoiceId).toBe('KonomiKoharaWav'))
+})

@@ -10,9 +10,12 @@ import {
   disableLive2DSdkBreath,
   useMotionUpdatePluginAutoEyeBlink,
   useMotionUpdatePluginBreathControl,
+  useMotionUpdatePluginCursorFocus,
   useMotionUpdatePluginIdleDisable,
+  useMotionUpdatePluginIdleFocus,
   useMotionUpdatePluginLightSquint,
   useMotionUpdatePluginManualControl,
+  useMotionUpdatePluginRuntimeMotionLoop,
 } from './motion-manager'
 
 vi.mock('./animation', () => ({
@@ -74,6 +77,43 @@ function createContext(overrides: Partial<MotionManagerPluginContext> = {}): Mot
 }
 
 describe('live2d motion manager plugins', () => {
+  it('loops a lazily loaded runtime idle without repeating its fade and restores it on selection change', () => {
+    const context = createContext()
+    const motion = {
+      isLoop: vi.fn(() => false),
+      isLoopFadeIn: vi.fn(() => true),
+      setIsLoop: vi.fn(),
+      setIsLoopFadeIn: vi.fn(),
+    }
+    let selected = { group: 'Idle', index: 0 }
+    context.motionManager.motionGroups = { Idle: [] }
+    const plugin = useMotionUpdatePluginRuntimeMotionLoop(() => selected)
+
+    // ROOT CAUSE:
+    // A finite idle restarted with a fade every cycle, causing a speed spike.
+    // The pre-update plugin enables SDK looping before the queue's first parameter update.
+    plugin(context)
+    context.motionManager.motionGroups.Idle = [motion]
+    plugin(context)
+    expect(motion.setIsLoop).toHaveBeenLastCalledWith(true)
+    expect(motion.setIsLoopFadeIn).toHaveBeenLastCalledWith(false)
+
+    plugin(context)
+    expect(motion.setIsLoop).toHaveBeenCalledTimes(1)
+
+    selected = { group: 'Other', index: 0 }
+    plugin(context)
+    expect(motion.setIsLoop).toHaveBeenLastCalledWith(false)
+    expect(motion.setIsLoopFadeIn).toHaveBeenLastCalledWith(true)
+
+    selected = { group: 'Idle', index: 0 }
+    plugin(context)
+    context.live2dIdleAnimationEnabled.value = false
+    plugin(context)
+    expect(motion.setIsLoop).toHaveBeenLastCalledWith(false)
+    expect(motion.setIsLoopFadeIn).toHaveBeenLastCalledWith(true)
+  })
+
   it('keeps SDK breath from changing AIRI-owned idle parameters', () => {
     const updateParameters = vi.fn()
     const internalModel = {
@@ -162,6 +202,49 @@ describe('live2d motion manager plugins', () => {
     useMotionUpdatePluginIdleDisable(idleEyeFocus)(context)
 
     expect(idleEyeFocus.update).not.toHaveBeenCalled()
+  })
+
+  it('keeps cursor focus neutral between inputs while tracking is enabled', () => {
+    const idleEyeFocus = { update: vi.fn() }
+    const context = createContext({
+      live2dEyeTrackingEnabled: ref(true),
+      live2dEyeFocusSourceActive: ref(false),
+      live2dForceIdleEyeAnimation: ref(true),
+    })
+
+    useMotionUpdatePluginIdleFocus(idleEyeFocus)(context)
+    context.live2dIdleAnimationEnabled.value = false
+    useMotionUpdatePluginIdleDisable(idleEyeFocus)(context)
+
+    expect(idleEyeFocus.update).not.toHaveBeenCalled()
+  })
+
+  it('clears stale idle eye offsets even when the SDK handles the motion frame', () => {
+    const context = createContext({ live2dEyeTrackingEnabled: ref(true), handled: true })
+    context.model.setParameterValueById('ParamEyeBallX', -0.7)
+    context.model.setParameterValueById('ParamEyeBallY', 0.6)
+
+    // ROOT CAUSE:
+    // SDK idle frames skipped the idle-focus plugin but retained its previous eye offsets.
+    // The final plugin clears those offsets before SDK cursor focus is added.
+    useMotionUpdatePluginCursorFocus()(context)
+
+    expect(context.model.getParameterValueById('ParamEyeBallX')).toBe(0)
+    expect(context.model.getParameterValueById('ParamEyeBallY')).toBe(0)
+    expect(context.handled).toBe(true)
+  })
+
+  it('preserves motion eye values when tracking is disabled or a non-idle motion owns the pose', () => {
+    const plugin = useMotionUpdatePluginCursorFocus()
+    const context = createContext()
+    context.model.setParameterValueById('ParamEyeBallX', 0.4)
+    plugin(context)
+    expect(context.model.getParameterValueById('ParamEyeBallX')).toBe(0.4)
+
+    context.live2dEyeTrackingEnabled.value = true
+    context.isIdleMotion = false
+    plugin(context)
+    expect(context.model.getParameterValueById('ParamEyeBallX')).toBe(0.4)
   })
 
   /**

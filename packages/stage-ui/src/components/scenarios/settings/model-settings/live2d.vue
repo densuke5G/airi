@@ -794,7 +794,7 @@ function handleMotionSelect(selectedMotionPath: string | number | undefined) {
         />
       </div>
       <span v-if="expressionSettingsSnapshot.llmMode !== 'none'" text-xs text-neutral-500 dark:text-neutral-400>
-        {{ t('settings.live2d.expressions.llm-integration-wip') }}
+        {{ t('settings.live2d.expressions.llm-integration-ready') }}
       </span>
 
       <!-- Custom per-expression LLM toggles (only when mode = 'custom') -->

@@ -7,6 +7,7 @@ import type { DescribeToolImage } from './tool-images'
 import { createSparkCommandTool } from '@proj-airi/core-agent/agents/spark-command'
 import { uniqBy } from 'es-toolkit'
 
+import { resolveLive2DExpressionTools } from '../../../services/live2d-expression'
 import { createWebSearchTools, debug, mcp } from '../../../tools'
 import { useModsServerChannelStore } from '../../mods/api/channel-server'
 import { useWebSearchStore } from '../../modules/web-search'
@@ -49,6 +50,8 @@ export interface ResolveLlmToolsOptions {
    * @default gated on useWebSearchStore().configured
    */
   webSearchTools?: ToolSource
+  /** Live2D expressions permitted by the active Stage host. @default discovers the Stage host */
+  expressionTools?: ToolSource
   /**
    * Request-scoped tools from {@link StreamOptions.tools}. These are ordered
    * before active runtime tools so runtime registrations can intentionally
@@ -154,12 +157,14 @@ export async function resolveLlmTools(options: ResolveLlmToolsOptions = {}): Pro
     debugTools,
     sparkCommandTools,
     webSearchTools,
+    expressionTools,
     customTools,
   ] = await Promise.all([
     resolveToolSource(options.builtInTools ?? mcp),
     resolveToolSource(options.debugTools ?? debug),
     resolveSparkCommandTools(options.sparkCommandTools),
     resolveWebSearchTools(options.webSearchTools),
+    resolveToolSource(options.expressionTools ?? resolveLive2DExpressionTools),
     resolveCustomTools(options.customTools),
   ])
 
@@ -169,6 +174,7 @@ export async function resolveLlmTools(options: ResolveLlmToolsOptions = {}): Pro
       ...debugTools,
       ...sparkCommandTools,
       ...webSearchTools,
+      ...expressionTools,
       ...customTools,
       ...activeTools,
     ].toReversed(),

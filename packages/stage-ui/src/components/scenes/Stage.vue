@@ -13,7 +13,7 @@ import { defineInvokeHandler } from '@moeru/eventa'
 import { errorMessageFrom, sleep } from '@moeru/std'
 import { createLive2DLipSync } from '@proj-airi/model-driver-lipsync'
 import { wlipsyncProfile } from '@proj-airi/model-driver-lipsync/shared/wlipsync'
-import { createPlaybackManager, createSpeechPipeline, normalizeActPayload } from '@proj-airi/pipelines-audio'
+import { createPlaybackManager, createSpeechPipeline, createTtsSegmentStream, normalizeActPayload } from '@proj-airi/pipelines-audio'
 import { presenceBubbleIdle, presenceBubbleThinking } from '@proj-airi/stage-shared'
 import { defaultLive2DMotionControlDynamics, Live2DScene, useLive2DMotionControl, useLive2dParams, useSettingsLive2d } from '@proj-airi/stage-ui-live2d'
 import { MMDScene } from '@proj-airi/stage-ui-mmd'
@@ -28,7 +28,7 @@ import { useBroadcastChannel } from '@vueuse/core'
 // import embedWorkerURL from '@xsai-transformers/embed/worker?worker&url'
 // import { embed } from '@xsai/embed'
 import { storeToRefs } from 'pinia'
-import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, shallowReactive, shallowRef, watch } from 'vue'
 
 import StageRenderError from './stage-render-error.vue'
 
@@ -41,6 +41,7 @@ import { getDefinedProvider } from '../../libs/providers/providers'
 import { OFFICIAL_SPEECH_PROVIDER_ID, OFFICIAL_SPEECH_STREAMING_PROVIDER_ID } from '../../libs/providers/providers/official'
 import { bindSpeakingStateToPlaybackManager } from '../../libs/speech/playback-speaking-state'
 import { createStageTtsSession } from '../../libs/speech/tts-session'
+import { registerLive2DExpressionHost } from '../../services/live2d-expression'
 import { getSpeechBusContext, speechOutputGetPlaybackState } from '../../services/speech/bus'
 import { useLlmStreamingControlStore } from '../../stores/ai/chat-llm/streaming-control'
 import { useAudioContext, useSpeakingStore } from '../../stores/audio'
@@ -91,7 +92,16 @@ const {
   live2dShadowEnabled,
   live2dMaxFps,
   live2dRenderScale,
+  live2dExpressionEnabled,
 } = storeToRefs(useSettingsLive2d())
+// Input intents span synthesis gaps. Audio IDs include buffers queued after a
+// streaming input finishes. Both must drain before the face can return to idle.
+const expressionSpeechActivity = shallowReactive(new Set<string>())
+const disposeExpressionHost = registerLive2DExpressionHost(
+  () => stageModelRenderer.value === 'live2d' && live2dExpressionEnabled.value && !props.paused,
+  undefined,
+  () => expressionSpeechActivity.size > 0,
+)
 const live2dMotionControl = useLive2DMotionControl()
 const { exclusiveOwnerId: live2dMotionControlOwnerId } = storeToRefs(live2dMotionControl)
 const {
@@ -268,7 +278,7 @@ const speechRuntimeStore = useSpeechRuntimeStore()
 const backgroundStore = useBackgroundStore()
 const { activeBackgroundUrl } = storeToRefs(backgroundStore)
 
-const { currentMotion } = storeToRefs(useLive2dParams())
+const { currentMotion, availableMotions } = storeToRefs(useLive2dParams())
 
 const emotionsQueue = createQueue<EmotionPayload>({
   handlers: [
@@ -282,7 +292,9 @@ const emotionsQueue = createQueue<EmotionPayload>({
         await vrmViewerRef.value!.setExpression(value, ctx.data.intensity)
       }
       else if (stageModelRenderer.value === 'live2d') {
-        currentMotion.value = { group: EMOTION_EmotionMotionName_value[ctx.data.name] }
+        const group = EMOTION_EmotionMotionName_value[ctx.data.name]
+        if (availableMotions.value.some(motion => motion.motionName === group))
+          currentMotion.value = { group }
       }
       else if (stageModelRenderer.value === 'spine') {
         spineSceneRef.value?.setEmotion(ctx.data.name, ctx.data.intensity)
@@ -328,7 +340,11 @@ chatHookCleanups.push(streamingControl.onSignal(async (signal) => {
   if (signal.type === 'act') {
     const act = normalizeActPayload(signal.payload)
     if (act.motion && stageModelRenderer.value === 'live2d') {
-      currentMotion.value = { group: act.motion }
+      // Facial expressions consume the same ACT independently. Natural-language
+      // motion cues must not replace Idle with a group absent from this model.
+      const motion = availableMotions.value.find(motion => motion.motionName.toLowerCase() === act.motion?.toLowerCase())
+      if (motion)
+        currentMotion.value = { group: motion.motionName }
       return
     }
     if (act.emotion) {
@@ -453,7 +469,15 @@ function resolveStageVoiceType(): 'official_selected' | 'custom_configured' {
   return activeSpeechProvider.value === OFFICIAL_SPEECH_PROVIDER_ID || activeSpeechProvider.value === OFFICIAL_SPEECH_STREAMING_PROVIDER_ID ? 'official_selected' : 'custom_configured'
 }
 
+function usesIrodori(): boolean {
+  return activeSpeechProvider.value === 'openai-compatible-audio-speech'
+    && providerStore.getProviderConfig(activeSpeechProvider.value)?.model === 'irodori-tts'
+}
+
 const speechPipeline = createSpeechPipeline<AudioBuffer>({
+  segmenter: (tokens, meta) => createTtsSegmentStream(tokens, meta, {
+    sentenceChunking: usesIrodori() ? { minChars: 30, maxChars: 50, sentences: 2 } : undefined,
+  }),
   tts: async (request, signal) => {
     if (signal.aborted)
       return null
@@ -552,11 +576,22 @@ const speechPipeline = createSpeechPipeline<AudioBuffer>({
         supportsSSML: speechStore.supportsSSML,
       })
 
+      let synthesisProvider = provider
+      if (usesIrodori()) {
+        synthesisProvider = {
+          ...provider,
+          speech: (selectedModel, config) => ({
+            ...provider.speech(selectedModel, config),
+            irodori: { chunking_enabled: false },
+          }),
+        }
+      }
+
       // Non-streaming providers only: synth via REST. Streaming provider
       // was already early-returned above; it owns its own ws path opened
       // in `onBeforeMessageComposed`.
       const res = await speechStore.speech(
-        provider,
+        synthesisProvider,
         model,
         speechRequest.input,
         voice.id,
@@ -609,6 +644,16 @@ speechPipeline.on('onSpecial', (segment) => {
   }
 })
 
+speechPipeline.on('onIntentStart', (intentId) => {
+  expressionSpeechActivity.add(`input:${intentId}`)
+})
+speechPipeline.on('onIntentEnd', (intentId) => {
+  expressionSpeechActivity.delete(`input:${intentId}`)
+})
+speechPipeline.on('onIntentCancel', ({ intentId }) => {
+  expressionSpeechActivity.delete(`input:${intentId}`)
+})
+
 speechPipeline.on('onTurnEnd', (turnId) => {
   streamingControl.completeTurn(turnId)
 })
@@ -630,6 +675,7 @@ bindSpeakingStateToPlaybackManager(playbackManager, {
       nowSpeaking.value = true
   },
   onStart: ({ item }) => {
+    expressionSpeechActivity.add(`audio:${item.id}`)
     // NOTICE: postCaption and postPresent may throw errors if the BroadcastChannel is closed
     // (e.g., when navigating away from the page). We wrap these in try-catch to prevent
     // breaking playback when the channel is unavailable.
@@ -648,6 +694,10 @@ bindSpeakingStateToPlaybackManager(playbackManager, {
     }
   },
 })
+
+playbackManager.onEnd(({ item }) => expressionSpeechActivity.delete(`audio:${item.id}`))
+playbackManager.onInterrupt(({ item }) => expressionSpeechActivity.delete(`audio:${item.id}`))
+playbackManager.onReject(({ item }) => expressionSpeechActivity.delete(`audio:${item.id}`))
 
 function startLipSyncLoop() {
   if (lipSyncLoopId.value)
@@ -741,6 +791,7 @@ function stopSpeechOutput(reason: string) {
   currentSession = null
   speechPipeline.stopAll(reason)
   playbackManager.stopAll(reason)
+  expressionSpeechActivity.clear()
   resetAssistantSpeechSurface(reason)
 }
 
@@ -817,6 +868,8 @@ function openTtsSession(turnId: string): StageTtsSession {
   // compare identity; the `stream-` guard is preserved so segmenter sessions still don't self-clear.
   let session: StageTtsSession | null = null
   const clearIfActive = () => {
+    if (session)
+      expressionSpeechActivity.delete(`input:${session.intentId}`)
     if (session && currentSession === session && session.intentId.startsWith('stream-'))
       currentSession = null
   }
@@ -824,7 +877,13 @@ function openTtsSession(turnId: string): StageTtsSession {
     transport: resolveSpeechTransport(activeSpeechProvider.value),
     streaming: () => buildStreamingSnapshot(turnId),
     audioContext,
-    playbackManager,
+    playbackManager: {
+      schedule: (item) => {
+        expressionSpeechActivity.add(`audio:${item.id}`)
+        playbackManager.schedule(item)
+      },
+      stopByIntent: playbackManager.stopByIntent,
+    },
     openIntent: opts => speechRuntimeStore.openIntent(opts),
     intentOptions: () => ({
       turnId,
@@ -850,6 +909,7 @@ function openTtsSession(turnId: string): StageTtsSession {
       },
     },
   })
+  expressionSpeechActivity.add(`input:${session.intentId}`)
   return session
 }
 
@@ -866,6 +926,7 @@ watch(speechMuted, (muted) => {
 }, { immediate: true })
 
 chatHookCleanups.push(onBeforeMessageComposed(async (_message, context) => {
+  expressionSpeechActivity.clear()
   playbackManager.stopAll('new-message')
   resetAssistantSpeechSurface('new-message')
 
@@ -881,7 +942,8 @@ chatHookCleanups.push(onBeforeMessageComposed(async (_message, context) => {
 }))
 
 chatHookCleanups.push(onBeforeSend(async () => {
-  currentMotion.value = { group: EmotionThinkMotionName }
+  if (availableMotions.value.some(motion => motion.motionName === EmotionThinkMotionName))
+    currentMotion.value = { group: EmotionThinkMotionName }
 }))
 
 chatHookCleanups.push(onTokenLiteral(async (literal) => {
@@ -1020,6 +1082,7 @@ async function captureCharacterFrame() {
 }
 
 onUnmounted(() => {
+  disposeExpressionHost()
   disposePlaybackStateHandler()
   resetLive2dLipSync()
   chatHookCleanups.forEach(dispose => dispose?.())

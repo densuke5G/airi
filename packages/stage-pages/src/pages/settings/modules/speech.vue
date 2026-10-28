@@ -334,15 +334,18 @@ function trackOfficialTtsExposure(providerId = activeSpeechProvider.value, model
 
 /** Applies provider defaults in the leader without a follower state proposal. */
 async function syncOpenAICompatibleSettings() {
-  if (activeSpeechProvider.value !== 'openai-compatible-audio-speech')
+  const provider = activeSpeechProvider.value
+  if (providersStore.findProviderDefinition(provider)?.id !== 'openai-compatible-audio-speech')
+    return
+  if (activeSpeechModel.value && activeSpeechVoiceId.value)
     return
 
-  const providerConfig = providerStore.getProviderConfig(activeSpeechProvider.value)
-  // Empty provider fields select the same OpenAI defaults as the provider form.
+  const providerConfig = providerStore.getProviderConfig(provider)
+  // Character selections take precedence. Provider defaults only fill empty fields.
   await speechStore.selectProviderModel(
-    activeSpeechProvider.value,
-    providerConfig?.model as string || 'tts-1',
-    providerConfig?.voice as string || 'alloy',
+    provider,
+    activeSpeechModel.value || (typeof providerConfig?.model === 'string' ? providerConfig.model : '') || 'tts-1',
+    activeSpeechVoiceId.value || (typeof providerConfig?.voice === 'string' ? providerConfig.voice : '') || 'alloy',
   )
 }
 

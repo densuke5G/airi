@@ -2,6 +2,38 @@
 
 Shared core for stage
 
+## Live2D conversation expressions
+
+In model settings, enable **Expression System** and set **Allow LLM Access** to **All** or **Custom**.
+For **Custom**, select each expression that the chat model can use.
+The conversation's ACT emotion tokens select permitted expressions during speech playback.
+No explicit expression request or provider tool call is required.
+The face stays until the full utterance finishes, including synthesis gaps and queued audio.
+It returns to neutral 0.35 seconds after speech finishes or stops.
+Without audio, the face resets after six seconds.
+Exact expression names take precedence over standard emotion aliases.
+For example, `surprised` selects `surprise` when the model publishes that expression.
+Unknown motion cues do not replace the model's Idle motion.
+
+For providers with tool calling, the conversation also receives an `expression_set` tool with the permitted expression names.
+The tool changes the face in the Stage renderer, including calls from a separate Electron chat window.
+Each call specifies strength from zero to one and a duration from 0.1 to 30 seconds.
+The tool description suggests six seconds for a typical reply.
+During speech, tool durations cannot reset the face before the utterance ends.
+Without speech, tool durations control the reset time.
+
+The host checks exposure and model identity again before each change.
+Hidden expressions, raw parameter IDs, and commands for a previous model fail without changing the face.
+A new expression clears the previous expression and its timers.
+The tool does not save defaults or edit model files.
+Speech playback continues to control mouth opening.
+Tool-based expression timing follows the tool call, independently of speech playback.
+
+The model decides which emotion to emit. A repeated emotion can keep the same expression across replies.
+The exposure selection is saved for each model on this device and restored after restarting AIRI or reloading the model.
+Select it once after upgrading from the version that did not save exposure.
+Newly imported models start with no LLM access and need their own selection.
+
 ## Startup progress
 
 `useStartupResourcesStore` records each resource as queued, loading, ready, failed, or skipped.

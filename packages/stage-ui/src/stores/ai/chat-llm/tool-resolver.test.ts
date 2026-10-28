@@ -45,6 +45,18 @@ describe('toolNameFrom', () => {
 })
 
 describe('resolveLlmTools', () => {
+  it('includes permitted Live2D expression tools in the conversation tool list', async () => {
+    const expressionTool = createTool('expression_set')
+    const tools = await resolveLlmTools({
+      builtInTools: [],
+      debugTools: [],
+      sparkCommandTools: [],
+      webSearchTools: [],
+      expressionTools: [expressionTool],
+      activeTools: [],
+    })
+    expect(tools).toEqual([expressionTool])
+  })
   it('reads the images of every tool when it receives an image reader', async () => {
     const screenshot = [{ type: 'image_url', image_url: { url: 'data:image/png;base64,aW1hZ2U=' } }]
     const builtInTool = { ...createTool('builtIn_mcpCallTool'), execute: async () => screenshot }

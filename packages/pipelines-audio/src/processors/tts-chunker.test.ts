@@ -4,7 +4,7 @@ import type { TtsInputChunk } from './tts-chunker'
 
 import { describe, expect, it } from 'vitest'
 
-import { chunkTtsInput, isProbablyAngleTag, processNarrative } from './tts-chunker'
+import { chunkTtsInput, createTtsSegmentStream, isProbablyAngleTag, processNarrative } from './tts-chunker'
 
 async function collectChunkText(input: string) {
   const chunks: string[] = []
@@ -165,5 +165,92 @@ describe('tTS Chunker Logic Cleanup', () => {
 
       expect(chunks.join('')).toBe(input)
     })
+  })
+})
+
+describe('whole response synthesis', () => {
+  it('keeps clauses, sentences and special markers in one speech request', async () => {
+    const meta = { streamId: 'stream', intentId: 'intent', turnId: 'turn' }
+    const tokens = new ReadableStream({
+      start(controller) {
+        let sequence = 0
+        for (const token of [
+          { type: 'literal' as const, value: 'こんにちは、元気ですか？' },
+          { type: 'special' as const, value: 'emotion:happy' },
+          { type: 'literal' as const, value: '今日は一緒に過ごしましょう。' },
+          { type: 'flush' as const },
+          { type: 'literal' as const, value: '楽しみです！' },
+        ]) {
+          controller.enqueue({ ...meta, ...token, sequence: sequence++, createdAt: Date.now() })
+        }
+        controller.close()
+      },
+    })
+    const reader = createTtsSegmentStream(tokens, meta, { wholeResponse: true }).getReader()
+    const speech = await reader.read()
+    expect(speech.value?.text).toBe('こんにちは、元気ですか？今日は一緒に過ごしましょう。楽しみです！')
+    expect(speech.value?.turnId).toBe('turn')
+    expect(speech.value?.special).toBeNull()
+    const special = await reader.read()
+    expect(special.value?.text).toBe('')
+    expect(special.value?.special).toBe('emotion:happy')
+    expect((await reader.read()).done).toBe(true)
+  })
+
+  it('does not emit speech for an empty response', async () => {
+    const chunks: TtsInputChunk[] = []
+    for await (const chunk of chunkTtsInput('  ', { wholeResponse: true }))
+      chunks.push(chunk)
+    expect(chunks).toEqual([])
+  })
+})
+
+describe('sentence group synthesis', () => {
+  const sentenceChunking = { minChars: 30, maxChars: 50, sentences: 2 }
+
+  async function collect(text: string) {
+    const chunks: TtsInputChunk[] = []
+    for await (const chunk of chunkTtsInput(text, { sentenceChunking }))
+      chunks.push(chunk)
+    return chunks
+  }
+
+  it('keeps a short two-sentence reply together', async () => {
+    const text = 'こんにちは、今日はいい天気ですね。ゆっくりお話ししましょう。'
+    expect((await collect(text)).map(chunk => chunk.text)).toEqual([text])
+  })
+
+  it('groups sentences without splitting at commas', async () => {
+    const first = 'こんにちは、今日は一緒にゆっくり過ごしましょう。作業の前に、お茶でひと息つきましょう。'
+    const second = '疲れたときには、無理をせずに休んでください。話したくなったら、いつでも声をかけてくださいね。'
+    expect((await collect(first + second)).map(chunk => chunk.text)).toEqual([first, second])
+  })
+
+  it('emits a long sentence at its boundary without waiting for another sentence', async () => {
+    const first = '今日はあなたの作業を見守りながら、疲れたときにはいつでもお話しできるように、ここで静かに待っていますね。'
+    const tail = '気軽に声をかけてね。'
+    expect((await collect(first + tail)).map(chunk => chunk.text)).toEqual([first, tail])
+  })
+
+  it('keeps very short sentences together until the minimum size', async () => {
+    const text = 'うん。そうだね。いいよ！一緒にゆっくりお話しして過ごしましょう。'
+    expect((await collect(text)).map(chunk => chunk.text)).toEqual([text])
+  })
+
+  it('emits a sentence group before the response closes', async () => {
+    const first = 'こんにちは、今日は一緒にゆっくり過ごしましょう。作業の前に、お茶でひと息つきましょう。'
+    let controller: ReadableStreamDefaultController<Uint8Array> | undefined
+    const stream = new ReadableStream<Uint8Array>({
+      start(value) { controller = value },
+    })
+    const iterator = chunkTtsInput(stream.getReader(), { sentenceChunking })
+    const next = iterator.next()
+    // A following grapheme lets the reader commit the final sentence mark.
+    controller!.enqueue(new TextEncoder().encode(`${first}\n`))
+    expect((await next).value?.text).toBe(first)
+    controller!.enqueue(new TextEncoder().encode('またね。'))
+    controller!.close()
+    expect((await iterator.next()).value?.text).toBe('またね。')
+    expect((await iterator.next()).done).toBe(true)
   })
 })

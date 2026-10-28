@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { PushToTalkState } from '../../../utils/push-to-talk'
+
 import { defineInvoke } from '@moeru/eventa'
 import { useElectronEventaContext, useElectronEventaInvoke, useElectronMouseInElement } from '@proj-airi/electron-vueuse'
 import { IS_DEV } from '@proj-airi/stage-shared'
@@ -17,6 +19,7 @@ import ControlsIslandChatButton from './controls-island-chat-button.vue'
 import ControlsIslandFadeOnHover from './controls-island-fade-on-hover.vue'
 import ControlsIslandHearingConfig from './controls-island-hearing-config.vue'
 import ControlsIslandProfilePicker from './controls-island-profile-picker.vue'
+import ControlsIslandPushToTalk from './controls-island-push-to-talk.vue'
 import ControlsIslandSpeechMute from './controls-island-speech-mute.vue'
 import IndicatorMicVolume from './indicator-mic-volume.vue'
 
@@ -34,6 +37,9 @@ import { useControlsIslandPlacement } from './use-controls-island-placement'
 interface Emits {
   /** Reports whether an active interaction must delay placement changes. */
   interactionChange: [active: boolean]
+  pushToTalkStart: []
+  pushToTalkFinish: []
+  pushToTalkCancel: []
 }
 
 const props = withDefaults(defineProps<{
@@ -42,8 +48,10 @@ const props = withDefaults(defineProps<{
    * page owns the cursor signals and decides this.
    */
   cursorAway?: boolean
+  pushToTalkState?: PushToTalkState
 }>(), {
   cursorAway: false,
+  pushToTalkState: 'idle',
 })
 
 const emit = defineEmits<Emits>()
@@ -492,6 +500,15 @@ function resetMainWindowPosition() {
               {{ t('tamagotchi.stage.controls-island.open-hearing-controls') }}
             </template>
           </ControlButtonTooltip>
+
+          <ControlsIslandPushToTalk
+            :state="props.pushToTalkState"
+            :button-style="adjustStyleClasses.button"
+            :icon-class="adjustStyleClasses.icon"
+            @start="emit('pushToTalkStart')"
+            @finish="emit('pushToTalkFinish')"
+            @cancel="emit('pushToTalkCancel')"
+          />
 
           <ControlsIslandSpeechMute
             :button-style="adjustStyleClasses.button"

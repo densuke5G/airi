@@ -33,12 +33,14 @@ import {
   useMotionUpdatePluginAutoEyeBlink,
   useMotionUpdatePluginBeatSync,
   useMotionUpdatePluginBreathControl,
+  useMotionUpdatePluginCursorFocus,
   useMotionUpdatePluginExpression,
   useMotionUpdatePluginIdleDisable,
   useMotionUpdatePluginIdleFocus,
   useMotionUpdatePluginLightSquint,
   useMotionUpdatePluginLipSync,
   useMotionUpdatePluginManualControl,
+  useMotionUpdatePluginRuntimeMotionLoop,
 } from '../../../composables/live2d'
 import { useFitModel } from '../../../composables/live2d/fit-model'
 import { Emotion, EmotionNeutralMotionName } from '../../../constants/emotions'
@@ -77,7 +79,6 @@ const props = withDefaults(defineProps<{
   mouthOpenSize: 0,
   nowSpeaking: false,
   paused: false,
-  focusAt: () => ({ x: 0, y: 0 }),
   eyeTracking: false,
   eyeFocusSourceActive: false,
   disableFocusAt: false,
@@ -386,20 +387,6 @@ async function performModelLoad() {
     const selectedMotionGroup = localStorage.getItem('selected-runtime-motion-group')
     const selectedMotionIndex = localStorage.getItem('selected-runtime-motion-index')
 
-    // Configure the selected motion to loop
-    if (selectedMotionGroup !== null && selectedMotionIndex) {
-      const groupIndex = (motionManager.groups as Record<string, any>)[selectedMotionGroup]
-      if (groupIndex !== undefined && motionManager.motionGroups[groupIndex]) {
-        const motionIndex = Number.parseInt(selectedMotionIndex)
-        const motion = motionManager.motionGroups[groupIndex][motionIndex]
-        if (motion && motion._looper) {
-          // Force the motion to loop
-          motion._looper.loopDuration = 0 // 0 means infinite loop
-          console.info('Configured motion to loop infinitely:', selectedMotionGroup, motionIndex)
-        }
-      }
-    }
-
     if (selectedMotionGroup !== null && selectedMotionIndex && live2dIdleAnimationEnabled.value) {
       setTimeout(() => {
         console.info('Playing selected runtime motion:', selectedMotionGroup, selectedMotionIndex)
@@ -438,9 +425,19 @@ async function performModelLoad() {
       lastUpdateTime,
     })
 
+    motionManagerUpdate.register(useMotionUpdatePluginRuntimeMotionLoop(() => {
+      const group = localStorage.getItem('selected-runtime-motion-group')
+      const storedIndex = localStorage.getItem('selected-runtime-motion-index')
+      if (!group || storedIndex === null)
+        return
+      const index = Number(storedIndex)
+      if (Number.isInteger(index) && index >= 0)
+        return { group, index }
+    }), 'pre')
     motionManagerUpdate.register(useMotionUpdatePluginBeatSync(beatSync), 'pre')
     motionManagerUpdate.register(useMotionUpdatePluginIdleDisable(), 'pre')
     motionManagerUpdate.register(useMotionUpdatePluginIdleFocus(), 'post')
+    motionManagerUpdate.register(useMotionUpdatePluginCursorFocus(), 'final')
     // Both run in 'final' stage (ignores handled state).
     // Expression first: sets desired parameter values (e.g. closed eyes = 0).
     // Blink second: reads post-expression eye values, Multiply-modulates on top.
@@ -471,15 +468,12 @@ async function performModelLoad() {
       localCurrentMotion.value = { group, index }
     })
 
-    // Listen for motion finish to restart runtime motion for looping
+    // A one-shot motion can interrupt the selected idle. Resume it after completion.
     motionManager.on('motionFinish', () => {
       const selectedMotionGroup = localStorage.getItem('selected-runtime-motion-group')
       const selectedMotionIndex = localStorage.getItem('selected-runtime-motion-index')
 
       if (selectedMotionGroup !== null && selectedMotionIndex && live2dIdleAnimationEnabled.value) {
-        // Restart the selected runtime motion immediately for seamless looping
-        console.info('Motion finished, restarting runtime motion:', selectedMotionGroup, selectedMotionIndex)
-        // Use requestAnimationFrame to restart on the next frame for smooth transition
         requestAnimationFrame(() => {
           currentMotion.value = {
             group: selectedMotionGroup,
@@ -884,13 +878,17 @@ watch(live2dExpressionEnabled, (enabled) => {
   }
 })
 
-watch(focusAt, (value) => {
-  if (!model.value)
-    return
-  if (!props.eyeTracking)
+watch([model, focusAt, live2dEyeTrackingEnabled], ([currentModel, target, enabled]) => {
+  if (!currentModel)
     return
 
-  model.value.focus(value.x, value.y)
+  if (!enabled || !target) {
+    // Cursor coordinates use canvas pixels. Release through the SDK's normalized focus space.
+    currentModel.internalModel.focusController.focus(0, 0)
+    return
+  }
+
+  currentModel.focus(target.x, target.y)
 })
 
 onMounted(() => {

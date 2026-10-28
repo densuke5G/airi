@@ -12,6 +12,18 @@ docs:
   'fade-on-hover':
     enable: Auto hide
     disable: Always show
+  push-to-talk:
+    idle: Hold to talk, release to recognize
+    starting: Preparing microphone, keep holding
+    recording: Recording, release to recognize
+    transcribing: Recognizing speech
+    cancelling: Cancelling recording
+  input-detection:
+    threshold: Speech detection threshold
+    threshold-description: Higher values reduce automatic activation. Quiet speech can be missed. This does not separate music from voices.
+    silence: Silence before recognition
+    volume-fallback: Also detect speech by volume
+    volume-fallback-description: Turn this off if music triggers recording. Speech detection must work for automatic input.
   'open-settings': Open settings
   'open-chat': Open Chat
   'hide-chat': Hide Chat

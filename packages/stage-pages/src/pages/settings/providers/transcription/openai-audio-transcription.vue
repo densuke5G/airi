@@ -24,10 +24,8 @@ const defaultModel = 'whisper-1'
 // Model selection
 const model = computed({
   get: () => providers.value[providerId]?.model as string | undefined || defaultModel,
-  set: (value) => {
-    if (!providers.value[providerId])
-      providers.value[providerId] = {}
-    providers.value[providerId].model = value
+  set: async (value) => {
+    await providerStore.setProviderModel(providerId, value)
   },
 })
 
@@ -45,13 +43,19 @@ const apiKeyConfigured = computed(() => !!providers.value[providerId]?.apiKey)
 
 // Load models on mount
 onMounted(async () => {
-  await providersStore.loadModelsForConfiguredProviders()
-  await providersStore.fetchModelsForProvider(providerId)
+  await providersStore.initializeProvider(providerId)
+  if (apiKeyConfigured.value)
+    await providersStore.fetchModelsForProvider(providerId)
+})
+
+watch(apiKeyConfigured, async (configured) => {
+  if (configured)
+    await providersStore.fetchModelsForProvider(providerId)
 })
 
 // Generate transcription
 async function handleGenerateTranscription(file: File) {
-  const provider = await providersStore.getProviderInstance<TranscriptionProviderWithExtraOptions<string, any>>(providerId)
+  const provider = await providersStore.getProviderInstance<TranscriptionProviderWithExtraOptions<string, Record<string, unknown>>>(providerId)
   if (!provider) {
     throw new Error('Failed to initialize transcription provider')
   }
@@ -60,7 +64,7 @@ async function handleGenerateTranscription(file: File) {
   const providerConfig = providerStore.getProviderConfig(providerId)
 
   // Get model from configuration or use default
-  const modelToUse = providerConfig.model as string | undefined || defaultModel
+  const modelToUse = providerConfig?.model as string | undefined || defaultModel
 
   return await hearingStore.transcription(
     providerId,
@@ -70,11 +74,6 @@ async function handleGenerateTranscription(file: File) {
     'json',
   )
 }
-
-watch(model, async () => {
-  const providerConfig = providerStore.getProviderConfig(providerId)
-  providerConfig.model = model.value
-})
 </script>
 
 <template>

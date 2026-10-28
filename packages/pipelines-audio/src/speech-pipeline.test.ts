@@ -165,6 +165,35 @@ describe('createSpeechPipeline', () => {
     expect(maxInFlight).toBe(2)
   })
 
+  it('generates the next chunk while previous playback waits for completion', async () => {
+    const { scheduled, playback, end } = createPlaybackSpy({ autoEnd: false })
+    const secondAudio = deferred<string>()
+    const started: string[] = []
+    const pipeline = createSpeechPipeline<string>({
+      segmenter: createSegmenter(['first', 'second']),
+      playback,
+      async tts(request) {
+        started.push(request.text)
+        return request.sequence === 0 ? 'first audio' : secondAudio.promise
+      },
+    })
+    const finished = new Promise<void>((resolve) => {
+      pipeline.on('onIntentEnd', () => resolve())
+    })
+    pipeline.openIntent().end()
+    await delay(0)
+    expect(started).toEqual(['first', 'second'])
+    expect(scheduled.map(item => item.text)).toEqual(['first'])
+    secondAudio.resolve('second audio')
+    await delay(0)
+    expect(scheduled.map(item => item.text)).toEqual(['first'])
+    end(scheduled[0]!)
+    await delay(0)
+    expect(scheduled.map(item => item.text)).toEqual(['first', 'second'])
+    end(scheduled[1]!)
+    await finished
+  })
+
   it('cancels in-flight TTS work without scheduling stale playback', async () => {
     const { scheduled, playback } = createPlaybackSpy()
     const abortedRequests: number[] = []
