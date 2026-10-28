@@ -155,9 +155,12 @@ try {
     throw new Error('acceptance.identity_seed_failed')
   stage = 'owner_configure'
   await owner.command({ kind: 'bind-card', cardId: 'acceptance-card', characterId, worldId })
-  profile = { ...profile, enabled: true, modelBindings: { [JSON.stringify(['acceptance-provider', 'acceptance-model'])]: { externalProfileId: 'acceptance-profile' } } }
+  profile = { ...profile, enabled: true }
+  const withoutModelBinding = await owner.command({ kind: 'save', profile })
+  mark('missing_model_binding_not_configured', withoutModelBinding.connected && !withoutModelBinding.configured)
+  profile = { ...profile, modelBindings: { [JSON.stringify(['acceptance-provider', 'acceptance-model'])]: { externalProfileId: 'acceptance-profile' } } }
   connected = await owner.command({ kind: 'save', profile })
-  mark('owner_enabled_and_synchronized', connected.connected && connected.identity?.store_generation === identity.store_generation)
+  mark('owner_enabled_and_synchronized', connected.configured && connected.connected && connected.identity?.store_generation === identity.store_generation)
 
   stage = 'prepare_turn'
   let prepared

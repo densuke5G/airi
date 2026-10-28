@@ -139,6 +139,7 @@ export class MemoryOwner {
     this.snapshot.configured = this.snapshot.profile.enabled
       && this.snapshot.profile.worldId !== null
       && this.snapshot.profile.cardBindings.length > 0
+      && Object.keys(this.snapshot.profile.modelBindings).length > 0
       && this.conversationHost !== undefined && this.speechHost !== undefined
       && this.snapshot.connected
     const snapshot = structuredClone(this.snapshot)

@@ -24,6 +24,9 @@
     "real_identity_character_world_created": {
       "ok": true
     },
+    "missing_model_binding_not_configured": {
+      "ok": true
+    },
     "owner_enabled_and_synchronized": {
       "ok": true
     },
