@@ -13,6 +13,7 @@ import { stepCountAtLeast } from '@xsai/shared-chat'
 import { renderSegmentText } from '../messages/render-context'
 import { projectInput, projectRound } from '../messages/turns'
 import { createGeneration } from './generation'
+import { assertRequestPolicy, guardProviderFetch } from './provider-request-gate'
 import { createContinuationScope, mergeRequestHeaders, replaceProviderConfig, supportsTools } from './request-context'
 import { RequestSwitch } from './request-switch'
 import { toAiriStreamEvent } from './xsai-events'
@@ -183,10 +184,14 @@ export function streamResponses(input: {
     continuation: (data: ItemParam[], index) => ({ protocol: 'responses' as const, scope: scopes[index] ?? input.scope, data }),
     project: item => readOutput([item]),
   })
+  let currentRound = 0
   let providerConfigKeys = Object.keys(input.config)
   const requestOptions: ResponsesOptions = {
     ...input.config,
+    fetch: guardProviderFetch(input.config.fetch, input.options, () => currentRound),
     prepareStep: ({ input: current, steps }: { input: ItemParam[], steps: CompletionStep[] }) => {
+      currentRound = steps.length
+      assertRequestPolicy(input.options)
       const resolveStep = input.options?.resolveStep
       if (!resolveStep) {
         scopes.push(input.scope)
@@ -195,6 +200,7 @@ export function streamResponses(input: {
       return (async () => {
         const firstStep = scopes.length === 0 && input.initialStep
         const next = firstStep || await resolveStep()
+        assertRequestPolicy(input.options, next.model, next.providerId)
 
         const nextRequest = firstStep
           ? { protocol: 'responses' as const, config: input.config, webSearch: input.webSearch ?? false }
@@ -214,7 +220,7 @@ export function streamResponses(input: {
         providerConfigKeys = replaceProviderConfig(requestOptions, providerConfigKeys, nextRequest.config)
         Object.assign(requestOptions, {
           apiKey: nextRequest.config.apiKey,
-          fetch: nextRequest.config.fetch,
+          fetch: guardProviderFetch(nextRequest.config.fetch, input.options, () => currentRound),
           reasoning: nextRequest.config.reasoning,
           temperature: next.temperature,
           topP: next.topP,
@@ -228,9 +234,9 @@ export function streamResponses(input: {
         scopes.push(nextScope)
         const systemIndex = current.findIndex(item => item.type === 'message' && item.role === 'system')
         const systemMessage = current[systemIndex]
-        if (systemMessage?.type === 'message' && systemMessage.role === 'system')
+        if (!input.options?.privateContext && systemMessage?.type === 'message' && systemMessage.role === 'system')
           current[systemIndex] = { ...systemMessage, content: next.systemPrompt }
-        else if (next.systemPrompt)
+        else if (!input.options?.privateContext && next.systemPrompt)
           current.unshift({ type: 'message', role: 'system', content: next.systemPrompt })
 
         return { input: current, model: next.model, toolChoice: toolsSupported ? toolChoice(input.options?.toolChoice) : undefined }

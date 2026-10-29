@@ -42,12 +42,15 @@ import { OFFICIAL_SPEECH_PROVIDER_ID, OFFICIAL_SPEECH_STREAMING_PROVIDER_ID } fr
 import { bindSpeakingStateToPlaybackManager } from '../../libs/speech/playback-speaking-state'
 import { createStageTtsSession } from '../../libs/speech/tts-session'
 import { registerLive2DExpressionHost } from '../../services/live2d-expression'
+import { getMemoryConnection, getOptionalMemoryConnection } from '../../services/memory/connection'
+import { markPrivateSpeechTurn, memoryTracesProtected } from '../../services/memory/privacy'
 import { getSpeechBusContext, speechOutputGetPlaybackState } from '../../services/speech/bus'
 import { useLlmStreamingControlStore } from '../../stores/ai/chat-llm/streaming-control'
 import { useAudioContext, useSpeakingStore } from '../../stores/audio'
 import { useBackgroundStore } from '../../stores/background'
 import { useChatStore } from '../../stores/chat'
 import { useAiriCardStore } from '../../stores/modules'
+import { useMemoryStore } from '../../stores/modules/memory'
 import { useSpeechStore } from '../../stores/modules/speech'
 import { useSettingsPresenceBubble } from '../../stores/presence-bubble'
 import { useProviderConfigStore } from '../../stores/providers/config'
@@ -275,6 +278,15 @@ const speechStore = useSpeechStore()
 const { ssmlEnabled, activeSpeechProvider, activeSpeechModel, activeSpeechVoice, pitch } = storeToRefs(speechStore)
 const activeCardId = computed(() => activeCard.value?.name ?? 'default')
 const speechRuntimeStore = useSpeechRuntimeStore()
+const memoryStore = useMemoryStore()
+const memoryIntentRefs = new Map<string, string>()
+const memoryTtsStarts = new Map<string, number>()
+let stopMemorySpeechHost: (() => Promise<void>) | undefined
+
+function reportMemory(referenceId: string | undefined, report: import('../../services/memory/contracts').MemoryDeliveryReport) {
+  if (referenceId)
+    void getMemoryConnection().report(referenceId, report).catch(() => undefined)
+}
 const backgroundStore = useBackgroundStore()
 const { activeBackgroundUrl } = storeToRefs(backgroundStore)
 
@@ -503,7 +515,7 @@ const speechPipeline = createSpeechPipeline<AudioBuffer>({
       console.warn('[Speech Pipeline] bidirectional-ws provider reached per-segment fallback', {
         reason: 'streaming session was not opened at intent start (voice unset?)',
         provider: activeSpeechProvider.value,
-        segment: request.text?.slice(0, 40),
+        segmentChars: request.text.length,
       })
       return null
     }
@@ -532,7 +544,7 @@ const speechPipeline = createSpeechPipeline<AudioBuffer>({
       else {
         // Fallback to default if not in provider config
         model = 'tts-1'
-        console.warn('[Speech Pipeline] OpenAI Compatible: No model in provider config, using default', { providerConfig })
+        console.warn('[Speech Pipeline] OpenAI Compatible: No model in provider config, using default', { provider: activeSpeechProvider.value })
       }
 
       if (providerConfig?.voice) {
@@ -557,7 +569,7 @@ const speechPipeline = createSpeechPipeline<AudioBuffer>({
           provider: activeSpeechProvider.value,
           gender: 'neutral',
         }
-        console.warn('[Speech Pipeline] OpenAI Compatible: No voice in provider config, using default', { providerConfig })
+        console.warn('[Speech Pipeline] OpenAI Compatible: No voice in provider config, using default', { provider: activeSpeechProvider.value })
       }
     }
 
@@ -621,7 +633,7 @@ const speechPipeline = createSpeechPipeline<AudioBuffer>({
           provider: activeSpeechProvider.value,
           model,
           voice: voice?.id,
-          error: err,
+          error: memoryTracesProtected() ? 'speech request failed' : err,
         })
       }
       return null
@@ -630,9 +642,84 @@ const speechPipeline = createSpeechPipeline<AudioBuffer>({
   playback: playbackManager,
 })
 
+let currentSession: StageTtsSession | null = null
+
 initIOTracer()
 useIOTraceBridge(speechPipeline)
 void speechRuntimeStore.registerHost(speechPipeline)
+void getOptionalMemoryConnection()?.registerSpeechHost(async (request) => {
+  for (const referenceId of request.referenceIds) {
+    if (currentSession && memoryIntentRefs.get(currentSession.intentId) === referenceId)
+      currentSession.cancel('memory-stopped')
+    if (!await speechPipeline.stopOwner(referenceId))
+      return false
+  }
+  return true
+}, async (input) => {
+  if (input.type === 'start') {
+    markPrivateSpeechTurn(input.turnId)
+    currentSession?.cancel('memory-attempt-start')
+    currentSession = null
+    if (speechMuted.value || !activeSpeechProvider.value || activeSpeechProvider.value === 'speech-noop' || resolveSpeechTransport(activeSpeechProvider.value) === 'bidirectional-ws') {
+      reportMemory(input.referenceId, { kind: 'audio-unavailable', reason: speechMuted.value ? 'muted' : resolveSpeechTransport(activeSpeechProvider.value) === 'bidirectional-ws' ? 'streaming_unsupported' : 'noop' })
+      reportMemory(input.referenceId, { kind: 'speech-complete' })
+      return true
+    }
+    setupAnalyser()
+    await setupLipSync()
+    currentSession = openTtsSession(input.turnId, input.referenceId)
+    memoryIntentRefs.set(currentSession.intentId, input.referenceId)
+    return true
+  }
+  if (input.type === 'special' && input.text && (!currentSession || memoryIntentRefs.get(currentSession.intentId) !== input.referenceId))
+    await playSpecialToken(input.text)
+  if (!currentSession || memoryIntentRefs.get(currentSession.intentId) !== input.referenceId)
+    return speechMuted.value || !activeSpeechProvider.value || activeSpeechProvider.value === 'speech-noop' || resolveSpeechTransport(activeSpeechProvider.value) === 'bidirectional-ws'
+  if (input.type === 'literal' && input.text) {
+    currentSession.appendText(input.text)
+  }
+  else if (input.type === 'special' && input.text) {
+    currentSession.appendSpecial(input.text)
+  }
+  else if (input.type === 'end') {
+    currentSession.finishInput()
+    currentSession.end()
+  }
+  return true
+}).then((dispose) => { stopMemorySpeechHost = dispose }).catch(() => undefined)
+
+onUnmounted(() => {
+  void stopMemorySpeechHost?.().catch(() => undefined)
+})
+
+speechPipeline.on('onTtsRequest', (request) => {
+  const referenceId = memoryIntentRefs.get(request.intentId)
+  if (!referenceId)
+    return
+  memoryTtsStarts.set(request.segmentId, performance.now())
+  reportMemory(referenceId, { kind: 'tts-request', key: request, text: request.text })
+})
+speechPipeline.on('onTtsResult', (result) => {
+  const started = memoryTtsStarts.get(result.segmentId)
+  memoryTtsStarts.delete(result.segmentId)
+  reportMemory(memoryIntentRefs.get(result.intentId), { kind: 'tts-result', key: result, elapsedMs: started === undefined ? 0 : performance.now() - started })
+})
+speechPipeline.on('onTtsUnavailable', ({ request }) => {
+  const referenceId = memoryIntentRefs.get(request.intentId)
+  if (!referenceId)
+    return
+  void speechPipeline.stopOwner(referenceId).then((stopped) => {
+    if (stopped)
+      reportMemory(referenceId, { kind: 'audio-unavailable', reason: speechMuted.value ? 'muted' : activeSpeechProvider.value === 'speech-noop' ? 'noop' : 'synthesis_failed' })
+  })
+})
+speechPipeline.on('onSpeechRequestsComplete', event => reportMemory(memoryIntentRefs.get(event.intentId), { kind: 'speech-complete' }))
+speechPipeline.on('onPlaybackStart', ({ item }) => reportMemory(memoryIntentRefs.get(item.intentId), { kind: 'playback-start', key: item }))
+speechPipeline.on('onPlaybackEnd', ({ item }) => reportMemory(memoryIntentRefs.get(item.intentId), { kind: 'playback-end', key: item }))
+speechPipeline.on('onPlaybackInterrupt', ({ item }) => reportMemory(memoryIntentRefs.get(item.intentId), { kind: 'playback-interrupt', key: item }))
+speechPipeline.on('onPlaybackReject', ({ item }) => reportMemory(memoryIntentRefs.get(item.intentId), { kind: 'playback-fail', key: item }))
+speechPipeline.on('onIntentEnd', intentId => reportMemory(memoryIntentRefs.get(intentId), { kind: 'intent-end', intentId }))
+speechPipeline.on('onIntentCancel', ({ intentId }) => reportMemory(memoryIntentRefs.get(intentId), { kind: 'intent-interrupted', intentId }))
 
 speechPipeline.on('onSpecial', (segment) => {
   if (segment.special) {
@@ -784,7 +871,6 @@ function setupAnalyser() {
 // for the official streaming provider. Stage.vue intentionally does NOT
 // branch on provider id anywhere below — the factory is the single
 // decision point. See `packages/stage-ui/src/libs/speech/tts-session.ts`.
-let currentSession: StageTtsSession | null = null
 
 function stopSpeechOutput(reason: string) {
   currentSession?.cancel(reason)
@@ -860,7 +946,7 @@ function resolveSpeechTransport(providerId: string | null | undefined): SpeechTr
   return getDefinedProvider(providerId)?.capabilities?.speech?.transport
 }
 
-function openTtsSession(turnId: string): StageTtsSession {
+function openTtsSession(turnId: string, ownerId = activeCardId.value): StageTtsSession {
   // A session must only clear the module-level `currentSession` if it IS that session. The previous
   // code cleared it whenever any `stream-` session completed, which is unsafe once sessions exist that
   // are not assigned to `currentSession` (e.g. one-off read-aloud sessions): one of those finishing
@@ -887,7 +973,7 @@ function openTtsSession(turnId: string): StageTtsSession {
     openIntent: opts => speechRuntimeStore.openIntent(opts),
     intentOptions: () => ({
       turnId,
-      ownerId: activeCardId.value,
+      ownerId,
       priority: 'normal',
       behavior: 'queue',
     }),
@@ -896,7 +982,7 @@ function openTtsSession(turnId: string): StageTtsSession {
         console.error('[Speech Pipeline] streaming session error', {
           provider: activeSpeechProvider.value,
           model: activeSpeechModel.value,
-          error: err,
+          error: memoryTracesProtected() ? 'speech request failed' : err,
         })
         // Drop the failed session so no further audio is queued, but let the
         // playback manager keep draining already-queued audio and emit its own
@@ -933,7 +1019,7 @@ chatHookCleanups.push(onBeforeMessageComposed(async (_message, context) => {
   currentSession?.cancel('new-message')
   currentSession = null
 
-  if (speechMuted.value)
+  if (speechMuted.value || memoryStore.snapshot.profile.enabled)
     return
 
   setupAnalyser()
@@ -946,11 +1032,15 @@ chatHookCleanups.push(onBeforeSend(async () => {
     currentMotion.value = { group: EmotionThinkMotionName }
 }))
 
-chatHookCleanups.push(onTokenLiteral(async (literal) => {
+chatHookCleanups.push(onTokenLiteral(async (literal, context) => {
+  if (context.requestContextId)
+    return
   currentSession?.appendText(literal)
 }))
 
 chatHookCleanups.push(onTokenSpecial(async (special, context) => {
+  if (context.requestContextId)
+    return
   // Muting speech must not suppress non-audio signals such as emotion, motion,
   // delay, or plugin calls that normally travel through the TTS session.
   if (speechMuted.value) {
@@ -961,11 +1051,15 @@ chatHookCleanups.push(onTokenSpecial(async (special, context) => {
   currentSession?.appendSpecial(special)
 }))
 
-chatHookCleanups.push(onStreamEnd(async () => {
+chatHookCleanups.push(onStreamEnd(async (context) => {
+  if (context.requestContextId)
+    return
   currentSession?.finishInput()
 }))
 
-chatHookCleanups.push(onAssistantResponseEnd(async (_message) => {
+chatHookCleanups.push(onAssistantResponseEnd(async (_message, context) => {
+  if (context.requestContextId)
+    return
   currentSession?.end()
   // Streaming sessions null-out via the onDone hook; segmenter sessions
   // stay around until the next `onBeforeMessageComposed` cancels them

@@ -4,6 +4,7 @@ import type { createSpeechPipeline } from '@proj-airi/pipelines-audio'
 import { IOAttributes, IOSpanNames, IOSubsystems } from '@proj-airi/stage-shared'
 import { onScopeDispose } from 'vue'
 
+import { isPrivateSpeechTurn } from '../services/memory/privacy'
 import { activeTurnSpan, startSpan } from './use-io-tracer'
 
 export function useIOTraceBridge(pipeline: ReturnType<typeof createSpeechPipeline>) {
@@ -38,7 +39,7 @@ export function useIOTraceBridge(pipeline: ReturnType<typeof createSpeechPipelin
     const ttsSynthesisSpan = startSpan(IOSpanNames.TTSSynthesis, activeTurnSpan.value, {
       [IOAttributes.Subsystem]: IOSubsystems.TTS,
       [IOAttributes.TTSSegmentId]: request.segmentId,
-      [IOAttributes.TTSText]: request.text,
+      [IOAttributes.TTSText]: isPrivateSpeechTurn(request.turnId) ? '' : request.text,
       [IOAttributes.TTSChunkReason]: segmentReasons.get(request.segmentId) ?? '',
       [IOAttributes.TurnId]: request.turnId ?? '',
     })
@@ -60,7 +61,7 @@ export function useIOTraceBridge(pipeline: ReturnType<typeof createSpeechPipelin
     const playbackSpan = startSpan(IOSpanNames.AudioPlayback, activeTurnSpan.value, {
       [IOAttributes.Subsystem]: IOSubsystems.Playback,
       [IOAttributes.TTSSegmentId]: event.item.segmentId,
-      [IOAttributes.TTSText]: event.item.text,
+      [IOAttributes.TTSText]: isPrivateSpeechTurn(event.item.turnId) ? '' : event.item.text,
     })
     playbackSpans.set(event.item.segmentId, playbackSpan)
   }))

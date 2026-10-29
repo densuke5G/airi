@@ -1642,6 +1642,7 @@ export const useChatSessionStore = defineStore('chat-session', () => {
   watch([systemPrompt, activeSessionId], refreshActiveSessionSystemMessage)
 
   return {
+    applicationInstructions: computed(() => codeBlockSystemPrompt + mathSyntaxSystemPrompt),
     isReady,
     initialize,
     dispose,

@@ -10,6 +10,7 @@ import { streamText } from '@xsai/stream-text'
 
 import { chatContentToString, chatMessagesToProjectionEntries, conversationToChatMessages } from '../messages/chat-completions'
 import { createGeneration } from './generation'
+import { assertRequestPolicy, guardProviderFetch } from './provider-request-gate'
 import { createContinuationScope, mergeRequestHeaders, replaceProviderConfig, supportsContentArray, supportsTools } from './request-context'
 import { RequestSwitch } from './request-switch'
 import { toAiriStreamEvent } from './xsai-events'
@@ -35,10 +36,14 @@ export function streamChatCompletions(input: {
     continuation: (data: Message[], index) => ({ protocol: 'chat-completions' as const, scope: scopes[index] ?? input.scope, data }),
     project: item => chatMessagesToProjectionEntries([item]),
   })
+  let currentRound = 0
   let providerConfigKeys = Object.keys(input.config)
   const requestOptions: Parameters<typeof streamText>[0] = {
     ...input.config,
+    fetch: guardProviderFetch(input.config.fetch, input.options, () => currentRound),
     prepareStep: ({ input: current, steps }: { input: Message[], steps: CompletionStep[] }) => {
+      currentRound = steps.length
+      assertRequestPolicy(input.options)
       const resolveStep = input.options?.resolveStep
       if (!resolveStep) {
         scopes.push(input.scope)
@@ -47,6 +52,7 @@ export function streamChatCompletions(input: {
       return (async () => {
         const firstStep = scopes.length === 0 && input.initialStep
         const next = firstStep || await resolveStep()
+        assertRequestPolicy(input.options, next.model, next.providerId)
 
         const nextRequest = firstStep
           ? { protocol: 'chat-completions' as const, config: input.config }
@@ -66,7 +72,7 @@ export function streamChatCompletions(input: {
         providerConfigKeys = replaceProviderConfig(requestOptions, providerConfigKeys, nextRequest.config)
         Object.assign(requestOptions, {
           apiKey: nextRequest.config.apiKey,
-          fetch: nextRequest.config.fetch,
+          fetch: guardProviderFetch(nextRequest.config.fetch, input.options, () => currentRound),
           temperature: next.temperature,
           topP: next.topP,
           headers: mergeRequestHeaders(nextRequest.config.headers, next.headers),
@@ -88,9 +94,9 @@ export function streamChatCompletions(input: {
         }
         const systemIndex = current.findIndex(message => message.role === 'system')
         const systemMessage = current[systemIndex]
-        if (systemMessage?.role === 'system')
+        if (!input.options?.privateContext && systemMessage?.role === 'system')
           current[systemIndex] = { ...systemMessage, content: next.systemPrompt }
-        else if (next.systemPrompt)
+        else if (!input.options?.privateContext && next.systemPrompt)
           current.unshift({ role: 'system', content: next.systemPrompt })
 
         return { input: current, model: next.model, toolChoice: toolsSupported ? input.options?.toolChoice : undefined }

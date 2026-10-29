@@ -277,6 +277,94 @@ live2d:
 microphone: Microphone
 models: Model
 pages:
+  memory-panel:
+    connection: Metrodoros connection
+    endpoint: Connection address
+    token: Connection token
+    replacement: Changing the address or token stops the current connection before connecting to another client and store.
+    enabled: Use memory across conversations
+    status-label: Connection status
+    connection-error: The memory connection needs attention. Check the address and try again.
+    reasons:
+      model_binding_invalid: Enter a profile UUID and positive whole-number revisions, or leave all three empty.
+      sqlite_unavailable: 'Local memory storage could not start. Check the desktop runtime and reconnect.'
+      saved_settings_invalid: 'Saved memory settings could not be read. Repair the local settings before connecting.'
+      loopback_required: 'Use a local address such as 127.0.0.1 or localhost.'
+      token_required: 'Enter a connection token for this app session.'
+      sync_required: 'Memory needs to synchronize. Reconnect before sending a message.'
+      new_session_required: 'Start a new conversation to keep memory and ordinary history separate.'
+      stop_unconfirmed: 'The previous output has not stopped yet. Restore its window before reconnecting.'
+      capability_missing: 'The connected server or app does not support the required memory features.'
+      owner_lost: 'The conversation window changed. Reconnect from the active window.'
+      deadline_exceeded: 'Memory preparation timed out. Try again.'
+      store_changed: 'The memory store changed. Verify the connection again.'
+      connection_required: 'Connect and verify the memory server first.'
+      persona_binding_required: 'Map this AIRI Card to a character before approving its persona.'
+      persona_unavailable: 'The character profile is unavailable. Refresh the connection and try again.'
+      conversation_host_unavailable: 'The conversation window is unavailable. Restore it before connecting.'
+      speech_host_unavailable: 'The speech window is unavailable. Restore it before sending a message.'
+    status:
+      disabled: Memory is off
+      connecting: Connecting
+      syncing: Syncing
+      ready: Connected
+      degraded: Connected with limited capability
+      blocked: Connection blocked
+      token-required: Re-enter the connection token to connect
+    identity: 'Client {client} · store generation {generation}'
+    pending: 'Unsent items: {count}'
+    consolidation: 'Items awaiting organization: {count}'
+    save: Save settings
+    connect: Connect and verify
+    disconnect: Disconnect
+    refresh: Refresh status
+    current: Current conversation
+    card: AIRI Card
+    session: Conversation session
+    world: World
+    none: Not selected
+    sync-state: Sync state
+    current-character: Metrodoros character mapping
+    current-world: Connected world
+    last-sync: Last successful sync
+    never: Not synced yet
+    connected: Connected
+    not-connected: Not connected
+    retention: Current short-term memory limits
+    limits: History is limited to 8 turns and 6,000 characters. Original conversation text is kept for 7 days.
+    observation: Observations use a 60-second interval. This page does not request new screen captures.
+    conversation-actions: Conversation actions
+    new-conversation-note: Starting a new conversation closes the current session and stops its work. It does not delete long-term memory.
+    new-conversation: Start a new conversation
+    character-world: AIRI Card and character
+    active-card: 'Active AIRI Card: {name}'
+    character: Metrodoros character
+    choose-character: Choose an existing character
+    new-character: New character name
+    create-character: Create character
+    new-world: New world name
+    choose-world: Choose a world
+    create-world: Create world
+    bind-card: Bind AIRI Card and world
+    persona: Persona migration
+    persona-note: Review the proposed text and digest. Registration happens only after you approve this proposal.
+    propose: Propose persona migration
+    digest: 'Candidate digest: {digest}'
+    approve: Approve and register persona
+    model-binding: Conversation model binding
+    model-note: Bind the current provider and model to an external profile. Provider API keys stay in AIRI.
+    active-model: 'Current AIRI model: {provider} / {model}'
+    binding-version: 'Binding revision {binding} · profile {profile} · profile revision {revision}'
+    unknown: Unknown
+    binding-revision: Binding revision
+    profile-id: Metrodoros profile ID
+    profile-revision: Profile revision
+    pin-note: Enter the exact profile and binding versions configured on the server. Leave all three empty to keep consolidation waiting for a mapping.
+    external-profile: External profile ID
+    bind-model: Save model binding
+    management-unavailable: Memory editing, forgetting, and import or export management are not available here.
+    entry-description: Choose the short-term or long-term memory settings page.
+    error: The memory action failed. Check the connection and try again.
   account:
     title: Account
     description: View your profile and manage your account

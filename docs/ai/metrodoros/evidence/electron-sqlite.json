@@ -1,0 +1,8 @@
+{
+  "electron": "43.4.1",
+  "node": "24.18.1",
+  "sqlite": "3.53.1",
+  "write": true,
+  "rollback": true,
+  "reopen": true
+}

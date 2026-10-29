@@ -27,6 +27,7 @@ export default defineConfig({
   main: {
     build: {
       externalizeDeps: {
+        exclude: ['@proj-airi/stage-ui'],
         include: [
           // Native modules that have `__dirname` usages. Externalize to avoid bundling
           // them into ESM and causing issues in runtime.
@@ -80,6 +81,8 @@ export default defineConfig({
     resolve: {
       alias: {
         '@proj-airi/i18n': resolve(join(import.meta.dirname, '..', '..', 'packages', 'i18n', 'src')),
+        '@proj-airi/stage-ui/services/memory/owner': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-ui', 'src', 'services', 'memory', 'owner.ts')),
+        '@proj-airi/stage-ui/services/memory/privacy': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-ui', 'src', 'services', 'memory', 'privacy.ts')),
         '@proj-airi/server-runtime/server': resolve(join(import.meta.dirname, '..', '..', 'packages', 'server-runtime', 'src', 'server', 'index.ts')),
         '@proj-airi/server-runtime': resolve(join(import.meta.dirname, '..', '..', 'packages', 'server-runtime', 'src', 'index.ts')),
       },

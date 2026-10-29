@@ -1,0 +1,291 @@
+{
+  "schema": "airi-08.1-real-model-lifecycle/v1",
+  "scope": "Actual Electron IPC, real-model consolidation and recall, isolation, correction, forgetting, and crash/restart replay",
+  "provider": "openai",
+  "model": "gpt-4.1-mini",
+  "realHttp": true,
+  "realSqlite": true,
+  "realElectron": true,
+  "scenario": "08.1-p5-real-model-electron-ipc",
+  "status": "passed",
+  "checks": {
+    "electron": {
+      "ok": true,
+      "cdpConnected": true,
+      "configuredProvider": "openai",
+      "configuredModel": "gpt-4.1-mini",
+      "workerEnvVisible": true
+    },
+    "schema6Http": {
+      "ok": true,
+      "serverStarted": true,
+      "setupTarget": 6
+    },
+    "httpIdentity": {
+      "ok": true,
+      "characterCreated": true,
+      "worldCreated": true,
+      "clientBindingCreated": true,
+      "modelProfileBound": true
+    },
+    "serverCapabilities": {
+      "ok": true,
+      "conversationProfile": true,
+      "outputGate": true,
+      "changeNotifications": true
+    },
+    "mainMemoryOwnerBeforeTurn": {
+      "ok": true,
+      "reason": "no_character",
+      "state": "blocked",
+      "connected": true,
+      "configured": true,
+      "tokenRequired": false,
+      "enabled": true,
+      "outboxPending": 0,
+      "selectionPresent": false,
+      "selectionCardMatches": false,
+      "model": "gpt-4.1-mini"
+    },
+    "electronIpc": {
+      "ok": true,
+      "connectedThroughSettings": true,
+      "profileSaved": true,
+      "cardBound": true,
+      "modelBound": true
+    },
+    "originalUserText": {
+      "ok": true
+    },
+    "realModelTurn": {
+      "ok": true,
+      "assistantMessageCount": 1,
+      "errorMessageCount": 0,
+      "openAiResponseStatuses": [
+        200,
+        200
+      ],
+      "recallRequests": 1,
+      "serviceRouteStatuses": {
+        "/health/ready 200": 1,
+        "/v1/llm-profiles 200": 1,
+        "/v1/characters 201": 1,
+        "/v1/llm-profiles 201": 1,
+        "/v1/llm-bindings/:external_profile_id 200": 1,
+        "/v1/worlds 201": 1,
+        "/v1/worlds/:id/members 200": 1,
+        "/v1/client-bindings 201": 1,
+        "/v1/airi/capabilities 200": 8,
+        "/v1/airi/connection 200": 4,
+        "/v1/changes 200": 10,
+        "/v1/changes/ack 200": 2,
+        "/v1/characters 200": 5,
+        "/v1/worlds 200": 5,
+        "/v1/jobs 200": 5,
+        "/v1/sessions 201": 1,
+        "/v1/events 201": 2,
+        "/v1/recall 200": 1,
+        "/v1/outputs 201": 1
+      },
+      "elapsedMs": 1945
+    },
+    "mainMemoryOwnerAfterTurn": {
+      "ok": true,
+      "state": "ready",
+      "reason": null,
+      "connected": true,
+      "configured": true,
+      "enabled": true,
+      "outboxPending": 2,
+      "selectionPresent": true,
+      "selectionSessionMatches": true,
+      "selectionCardMatches": true
+    },
+    "persistedEventCounts": {
+      "user_input": 1,
+      "generated": 2,
+      "delivery": 3,
+      "activity:turn_closed": 1
+    },
+    "extractJob": {
+      "ok": true,
+      "count": 3,
+      "kinds": [
+        "resolve_intent",
+        "extract_turn"
+      ],
+      "states": [
+        "pending",
+        "succeeded"
+      ],
+      "eventCounts": {
+        "user_input": 1,
+        "generated": 2,
+        "delivery": 3,
+        "activity:turn_closed": 1
+      },
+      "reasons": [
+        {
+          "kind": "resolve_intent",
+          "state": "pending",
+          "reason": null,
+          "attempt": 0,
+          "profilePresent": true
+        },
+        {
+          "kind": "extract_turn",
+          "state": "succeeded",
+          "reason": null,
+          "attempt": 1,
+          "profilePresent": true
+        },
+        {
+          "kind": "resolve_intent",
+          "state": "succeeded",
+          "reason": null,
+          "attempt": 1,
+          "profilePresent": true
+        }
+      ],
+      "lastErrorCode": null
+    },
+    "extractedMemoryStates": [
+      {
+        "kind": "user_fact",
+        "key": "preference.drink",
+        "status": "active",
+        "certainty": "explicit",
+        "evidenceType": "user_statement"
+      }
+    ],
+    "candidateReasons": [],
+    "candidateDiagnostics": [],
+    "realModelAndExtraction": {
+      "ok": true,
+      "assistantTurnReturned": true,
+      "recallRequests": 1,
+      "extractionJob": "succeeded",
+      "matchingMemoryTextCount": 1,
+      "elapsedMs": 36921
+    },
+    "preparationRetries": [],
+    "secondModelMessages": {
+      "roles": [
+        "user",
+        "assistant"
+      ],
+      "statuses": [
+        200,
+        200
+      ]
+    },
+    "memoryAtRecall": [
+      {
+        "kind": "user_fact",
+        "key": "preference.drink",
+        "status": "active",
+        "certainty": "explicit",
+        "evidenceType": "user_statement"
+      }
+    ],
+    "newSessionRecall": {
+      "ok": true,
+      "recallRequestObserved": true,
+      "correctCharacter": true,
+      "recallStatus": 200,
+      "elapsedMs": 2119
+    },
+    "offlinePending": {
+      "ok": true,
+      "pendingCount": 5,
+      "kinds": [
+        "event",
+        "output_state",
+        "session_close"
+      ]
+    },
+    "rendererCrash": {
+      "sameNamespace": true,
+      "matchingStoreCount": 1,
+      "matchingSessionCount": 2,
+      "eventSequenceMonotonic": true,
+      "pendingReplayIdentityPreserved": true,
+      "beforePendingCount": 5,
+      "afterPendingCount": 5,
+      "beforeEventCount": 16,
+      "afterEventCount": 16,
+      "afterOutboxCounts": {
+        "event:acked:none:due:user_input": 2,
+        "event:acked:none:due:generated": 3,
+        "event:acked:none:due:delivery": 3,
+        "event:acked:none:due:activity:turn_closed": 1,
+        "output_state:acked:none:due:unknown": 1,
+        "session_close:acked:none:due:unknown": 1,
+        "event:pending:none:due:generated": 1,
+        "event:pending:none:due:delivery": 1,
+        "event:pending:none:due:activity:turn_closed": 1,
+        "output_state:pending:none:due:unknown": 1,
+        "session_close:pending:none:due:unknown": 1
+      },
+      "crashObserved": true,
+      "credentialRemainedInMain": true
+    },
+    "mainRestartCredential": {
+      "ok": true,
+      "tokenRequired": true,
+      "connected": false
+    },
+    "mainRestartReplay": {
+      "sameNamespace": true,
+      "matchingStoreCount": 1,
+      "matchingSessionCount": 2,
+      "eventSequenceMonotonic": true,
+      "pendingReplayIdentityPreserved": true,
+      "beforePendingCount": 5,
+      "afterPendingCount": 0,
+      "beforeEventCount": 16,
+      "afterEventCount": 16,
+      "afterOutboxCounts": {
+        "event:acked:none:due:user_input": 2,
+        "event:acked:none:due:generated": 4,
+        "event:acked:none:due:delivery": 4,
+        "event:acked:none:due:activity:turn_closed": 2,
+        "output_state:acked:none:due:unknown": 2,
+        "session_close:acked:none:due:unknown": 2
+      },
+      "identityPreserved": true,
+      "allPendingAcknowledged": true
+    },
+    "otherCharacterIsolation": {
+      "ok": true,
+      "sameWorld": true
+    },
+    "correction": {
+      "ok": true,
+      "returnedStatus": "active",
+      "returnedCoffee": true,
+      "visibleCount": 1,
+      "visibleStates": [
+        {
+          "status": "active",
+          "coffee": true,
+          "tea": false,
+          "old": false
+        }
+      ]
+    },
+    "forget": {
+      "ok": true,
+      "activeMemoryRemoved": true,
+      "checkpointAdvanced": true
+    }
+  },
+  "startedAt": "2026-10-29T02:01:55.191Z",
+  "cleanup": {
+    "duplicateProfileCredentialCleared": true,
+    "duplicateProfileDisabled": true,
+    "isolatedStoreRemoved": true
+  },
+  "finishedAt": "2026-10-29T02:03:59.853Z",
+  "elapsedMs": 124662
+}

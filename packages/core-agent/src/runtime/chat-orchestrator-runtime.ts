@@ -265,7 +265,36 @@ interface ChatRoundCorrelation {
 /**
  * Dependency surface used by the platform-agnostic chat orchestrator runtime.
  */
+/** Request-only projection. The runtime never writes its Conversation to session storage. */
+export interface PreparedRequestContext {
+  /** Opaque request correlation for speech and final display receipts. */
+  contextId?: string
+  /** Dedicated output host callbacks. They do not publish private prompt projections. */
+  onOutputStart?: () => Promise<void>
+  onLiteral?: (text: string) => Promise<void>
+  onSpecial?: (special: string) => Promise<void>
+  onInputEnd?: () => Promise<void>
+  conversation: Conversation
+  requestPolicy?: StreamOptions['requestPolicy']
+  privateContext?: boolean
+  signal?: AbortSignal
+  recordProgress?: (text: string) => void
+  settled?: (event: { outcome: 'completed' | 'interrupted' | 'failed', text: string, assistantMessageId: string }) => void | Promise<void>
+}
+
 export interface ChatOrchestratorRuntimeDeps {
+  /** Runs after attachments and runtime instructions, before projections or provider calls. */
+  prepareRequestContext?: (input: {
+    conversation: Conversation
+    sessionId: string
+    userMessageId: string
+    attemptId: string
+    deadlineAt: number
+    inputKind: 'typed' | 'transcribed'
+    model: string
+    providerId: string
+    signal: AbortSignal
+  }) => Promise<PreparedRequestContext>
   /** Session persistence and generation guard port. */
   session: ChatOrchestratorSessionPort
   /** Context registry facade used for runtime context ingest and prompt snapshots. */
@@ -461,6 +490,35 @@ async function waitForProvider(work: Promise<unknown>, signal: AbortSignal) {
  * Returns:
  * - A runtime with send queue APIs, hook registry, writable sending state, and queue snapshots.
  */
+async function prepareWithDeadline(
+  prepare: NonNullable<ChatOrchestratorRuntimeDeps['prepareRequestContext']>,
+  input: Parameters<NonNullable<ChatOrchestratorRuntimeDeps['prepareRequestContext']>>[0],
+): Promise<PreparedRequestContext> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(new Error('Request preparation deadline exceeded')), Math.max(1, input.deadlineAt - Date.now()))
+  const signal = AbortSignal.any([input.signal, controller.signal])
+  let onAbort: (() => void) | undefined
+  try {
+    const prepared = await Promise.race([
+      prepare({ ...input, signal }),
+      new Promise<never>((_resolve, reject) => {
+        onAbort = () => reject(signal.reason)
+        if (signal.aborted)
+          onAbort()
+        else
+          signal.addEventListener('abort', onAbort, { once: true })
+      }),
+    ])
+    signal.throwIfAborted()
+    return prepared
+  }
+  finally {
+    clearTimeout(timeout)
+    if (onAbort)
+      signal.removeEventListener('abort', onAbort)
+  }
+}
+
 export function createChatOrchestratorRuntime(deps: ChatOrchestratorRuntimeDeps): ChatOrchestratorRuntime {
   // A queued send owns one controller until performSend settles. Session reset
   // aborts that transport as well as rejecting queued work for the same session.
@@ -634,8 +692,10 @@ export function createChatOrchestratorRuntime(deps: ChatOrchestratorRuntimeDeps)
       },
     })
 
+    let prepared: PreparedRequestContext | undefined
+    let fullText = ''
     const isStaleGeneration = () => deps.session.getSessionGeneration(sessionId) !== generation
-    const shouldAbort = () => isStaleGeneration() || abortSignal.aborted
+    const shouldAbort = () => isStaleGeneration() || abortSignal.aborted || prepared?.signal?.aborted === true || prepared?.requestPolicy?.isCurrent() === false
     if (shouldAbort())
       return
 
@@ -774,6 +834,8 @@ export function createChatOrchestratorRuntime(deps: ChatOrchestratorRuntimeDeps)
           if (speechOnly.trim()) {
             buildingMessage.content += speechOnly
 
+            if (prepared?.onLiteral)
+              await prepared.onLiteral(speechOnly)
             await hooks.emitTokenLiteralHooks(speechOnly, streamingMessageContext)
             if (shouldAbort())
               return
@@ -809,6 +871,8 @@ export function createChatOrchestratorRuntime(deps: ChatOrchestratorRuntimeDeps)
             return
           }
 
+          if (prepared?.onSpecial)
+            await prepared.onSpecial(special)
           await hooks.emitTokenSpecialHooks(special, streamingMessageContext)
         },
         onEnd: async (fullText) => {
@@ -850,7 +914,7 @@ export function createChatOrchestratorRuntime(deps: ChatOrchestratorRuntimeDeps)
         ],
       })
 
-      const context = buildContext(sessionMessagesForSend)
+      let context = buildContext(sessionMessagesForSend)
       const stickerPrompt = stickers?.length
         ? [
             'You can send one optional sticker per reply with a marker from this catalog.',
@@ -878,13 +942,39 @@ export function createChatOrchestratorRuntime(deps: ChatOrchestratorRuntimeDeps)
         deps.onLifecycle?.({ phase: 'prompt-context-built', channel: 'chat', sessionId, details: { contexts: contextsSnapshot } })
       }
 
+      if (deps.prepareRequestContext) {
+        prepared = await prepareWithDeadline(deps.prepareRequestContext, {
+          conversation: context,
+          sessionId,
+          userMessageId: roundId,
+          attemptId: createId(),
+          deadlineAt: Date.now() + 1000,
+          inputKind: hasVoice ? 'transcribed' : 'typed',
+          model: options.model,
+          providerId: activeProvider,
+          signal: abortSignal,
+        })
+        if (shouldAbort())
+          return
+        context = prepared.conversation
+        if (prepared.contextId) {
+          streamingMessageContext.requestContextId = prepared.contextId
+          buildingMessage.requestContextId = prepared.contextId
+        }
+      }
+
+      if (prepared?.onOutputStart)
+        await prepared.onOutputStart()
+
       // Hooks, diagnostics, and the plugin bridge consume a display projection. It contains
       // no native continuation state and never becomes a provider request.
-      streamingMessageContext.composedMessage = renderConversationPreview(context)
+      streamingMessageContext.composedMessage = prepared?.privateContext ? [] : renderConversationPreview(context)
+      if (prepared?.privateContext)
+        streamingMessageContext.contexts = {}
       deps.onPromptProjection?.({
         sessionId,
         message: sendingMessage,
-        contexts: contextsSnapshot,
+        contexts: prepared?.privateContext ? {} : contextsSnapshot,
         composedMessage: streamingMessageContext.composedMessage,
       })
       deps.onLifecycle?.({
@@ -898,7 +988,6 @@ export function createChatOrchestratorRuntime(deps: ChatOrchestratorRuntimeDeps)
       await hooks.emitAfterMessageComposedHooks(sendingMessage, streamingMessageContext)
       await hooks.emitBeforeSendHooks(sendingMessage, streamingMessageContext)
 
-      let fullText = ''
       const headers = (options.providerConfig?.headers || {}) as Record<string, string>
 
       if (shouldAbort())
@@ -917,10 +1006,12 @@ export function createChatOrchestratorRuntime(deps: ChatOrchestratorRuntimeDeps)
 
       await waitForProvider(deps.llm.stream(options.model, options.chatProvider, context, {
         headers,
+        requestPolicy: prepared?.requestPolicy,
+        privateContext: prepared?.privateContext,
         providerId: activeProvider,
         supportsAudioInput: options.supportsAudioInput,
         supportsVisionInput: options.supportsVisionInput,
-        abortSignal,
+        abortSignal: prepared?.signal ? AbortSignal.any([abortSignal, prepared.signal]) : abortSignal,
         onGeneratedTurn: (turn) => { generatedTurn = structuredClone(turn) },
         requestCorrelation: {
           conversationId: correlation.conversationId,
@@ -992,6 +1083,7 @@ export function createChatOrchestratorRuntime(deps: ChatOrchestratorRuntimeDeps)
                 })
               }
               fullText += event.text
+              prepared?.recordProgress?.(fullText)
               await parser.consume(event.text)
               break
             case 'reasoning-delta': {
@@ -1026,10 +1118,14 @@ export function createChatOrchestratorRuntime(deps: ChatOrchestratorRuntimeDeps)
         return
 
       await parser.end()
+      if (prepared?.onInputEnd)
+        await prepared.onInputEnd()
       if (shouldAbort())
         return
 
       generationCompleted = true
+      if (prepared?.contextId)
+        buildingMessage.requestContextFinal = true
       buildingMessage.generationTranscript = generatedTurn
       try {
         deps.onAssistantResponseRendered?.({
@@ -1117,7 +1213,7 @@ export function createChatOrchestratorRuntime(deps: ChatOrchestratorRuntimeDeps)
       }
       resetForegroundStream(sessionId)
 
-      console.error('Error sending message:', error)
+      console.error('Error sending message:', prepared?.privateContext ? 'private request failed' : error)
       deps.onMessageRoundFailed?.({
         ...correlation,
         source: sendSource,
@@ -1154,6 +1250,11 @@ export function createChatOrchestratorRuntime(deps: ChatOrchestratorRuntimeDeps)
         activeStreamingMessage = activeSendSessionId ? activeSends.get(activeSendSessionId)?.message : undefined
       }
       emitStateChange()
+      await prepared?.settled?.({
+        outcome: shouldAbort() ? 'interrupted' : failed ? 'failed' : 'completed',
+        text: fullText,
+        assistantMessageId,
+      })
       deps.onSendSettled?.({ sessionId, turnId: roundId, status: shouldAbort() ? 'cancelled' : failed ? 'failed' : 'finished' })
     }
   }

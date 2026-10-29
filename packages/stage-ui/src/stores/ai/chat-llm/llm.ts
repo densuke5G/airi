@@ -50,6 +50,8 @@ export const useLLM = defineStore('llm', () => {
       await runStream()
     }
     catch (err) {
+      if (options?.requestPolicy && (options.requestPolicy.signal.aborted || !options.requestPolicy.isCurrent()))
+        throw err
       if (isToolRelatedError(err)) {
         console.warn(`[llm] Auto-disabling tools for "${key}" due to tool-related error`)
         toolsCompatibility.value.set(key, false)

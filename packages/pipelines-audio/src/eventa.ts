@@ -29,7 +29,12 @@ export const speechTurnStartEvent = defineEventa<string>('proj-airi:pipelines:ou
 export const speechTurnEndEvent = defineEventa<string>('proj-airi:pipelines:output:speech:turn-end')
 export const speechTurnCancelEvent = defineEventa<{ turnId: string, reason?: string }>('proj-airi:pipelines:output:speech:turn-cancel')
 
+const speechRequestsCompleteEvent = defineEventa<{ intentId: string, streamId: string, turnId?: string, ownerId?: string }>('proj-airi:pipelines:output:speech:requests-complete')
+const speechTtsUnavailableEvent = defineEventa<{ request: TtsRequest, reason: 'empty' | 'failed' }>('proj-airi:pipelines:output:speech:tts-unavailable')
+
 export const speechPipelineEventMap = {
+  onSpeechRequestsComplete: speechRequestsCompleteEvent,
+  onTtsUnavailable: speechTtsUnavailableEvent,
   onSegment: speechSegmentEvent,
   onSpecial: speechSpecialEvent,
   onTtsRequest: speechTtsRequestEvent,

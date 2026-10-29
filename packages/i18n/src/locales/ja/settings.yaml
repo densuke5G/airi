@@ -195,6 +195,94 @@ live2d:
 microphone: マイク
 models: モデル
 pages:
+  memory-panel:
+    connection: Metrodoros 接続
+    endpoint: 接続先アドレス
+    token: 接続トークン
+    replacement: 接続先アドレスまたはトークンを変更すると、現在の接続を停止してから別のクライアントとストアへ接続します。
+    enabled: 会話をまたいで記憶を使う
+    status-label: 接続状態
+    connection-error: 記憶の接続を確認できません。接続先を確認して再試行してください。
+    reasons:
+      model_binding_invalid: プロフィールのUUIDと正の整数のリビジョンを入力するか、3項目をすべて空にしてください。
+      sqlite_unavailable: 'ローカル記憶ストレージを開始できません。デスクトップ環境を確認して再接続してください。'
+      saved_settings_invalid: '保存済みの記憶設定を読み込めません。ローカル設定を修復してから接続してください。'
+      loopback_required: '127.0.0.1 または localhost のローカル接続先を指定してください。'
+      token_required: '今回の起動で使う接続トークンを入力してください。'
+      sync_required: '記憶の同期が必要です。再接続してからメッセージを送信してください。'
+      new_session_required: '記憶と通常の履歴を分けるため、新しい会話を開始してください。'
+      stop_unconfirmed: '前の出力の停止を確認できません。出力元のウィンドウを復旧してから再接続してください。'
+      capability_missing: '接続したサーバーまたはアプリが必要な記憶機能に対応していません。'
+      owner_lost: '会話ウィンドウが切り替わりました。現在のウィンドウから再接続してください。'
+      deadline_exceeded: '記憶の準備が時間切れになりました。再試行してください。'
+      store_changed: '記憶ストアが変更されました。接続を再確認してください。'
+      connection_required: '先に記憶サーバーへ接続し、確認してください。'
+      persona_binding_required: '人格を承認する前に、この AIRI Card とキャラクターを対応付けてください。'
+      persona_unavailable: 'キャラクターのプロフィールを取得できません。接続を更新して再試行してください。'
+      conversation_host_unavailable: '会話ウィンドウが利用できません。復旧してから接続してください。'
+      speech_host_unavailable: '音声ウィンドウが利用できません。復旧してからメッセージを送信してください。'
+    status:
+      disabled: 記憶連携はオフです
+      connecting: 接続中
+      syncing: 同期中
+      ready: 接続済み
+      degraded: 一部の機能を利用できない状態で接続済み
+      blocked: 接続がブロックされています
+      token-required: 接続するにはトークンを再入力してください
+    identity: 'クライアント {client} · ストア世代 {generation}'
+    pending: '未送信項目: {count}'
+    consolidation: '整理待ち項目: {count}'
+    save: 設定を保存
+    connect: 接続を確認
+    disconnect: 切断
+    refresh: 状態を更新
+    current: 現在の会話
+    card: AIRI カード
+    session: 会話セッション
+    world: ワールド
+    none: 未選択
+    sync-state: 同期状態
+    current-character: Metrodoros キャラクターの紐付け
+    current-world: 接続中のワールド
+    last-sync: 最終同期成功
+    never: 未同期
+    connected: 接続済み
+    not-connected: 未接続
+    retention: 現在の短期記憶の上限
+    limits: 履歴は8ターン、6,000文字までです。会話の原文は7日間保持します。
+    observation: 観測の間隔は60秒です。このページは新しい画面キャプチャを要求しません。
+    conversation-actions: 会話の操作
+    new-conversation-note: 新しい会話を開始すると、現在のセッションを閉じて処理を停止します。長期記憶は削除しません。
+    new-conversation: 新しい会話を開始
+    character-world: AIRI カードとキャラクター
+    active-card: '現在の AIRI カード: {name}'
+    character: Metrodoros キャラクター
+    choose-character: 既存のキャラクターを選択
+    new-character: 新しいキャラクター名
+    create-character: キャラクターを作成
+    new-world: 新しいワールド名
+    choose-world: ワールドを選択
+    create-world: ワールドを作成
+    bind-card: AIRI カードとワールドを紐付け
+    persona: 人格の移行
+    persona-note: 提案された文章とダイジェストを確認してください。承認後にのみ登録します。
+    propose: 人格移行を提案
+    digest: '候補ダイジェスト: {digest}'
+    approve: 人格を承認して登録
+    model-binding: 会話モデルの紐付け
+    model-note: 現在のプロバイダーとモデルを外部プロフィールへ紐付けます。プロバイダーのAPIキーはAIRIに保持します。
+    active-model: '現在のAIRIモデル: {provider} / {model}'
+    binding-version: '紐付けリビジョン {binding} · プロフィール {profile} · プロフィールリビジョン {revision}'
+    unknown: 不明
+    binding-revision: 紐付けリビジョン
+    profile-id: MetrodorosプロフィールID
+    profile-revision: プロフィールリビジョン
+    pin-note: サーバーに設定したプロフィールと紐付けの版を入力してください。3項目をすべて空にすると、整理はモデル対応の確認待ちになります。
+    external-profile: 外部プロフィールID
+    bind-model: モデルの紐付けを保存
+    management-unavailable: 記憶の編集、忘却、インポート、エクスポートの管理機能はここでは利用できません。
+    entry-description: 短期記憶または長期記憶の設定ページを選択してください。
+    error: 記憶の操作に失敗しました。接続を確認して再試行してください。
   account:
     title: アカウント
     description: プロフィールの閲覧とアカウントの管理

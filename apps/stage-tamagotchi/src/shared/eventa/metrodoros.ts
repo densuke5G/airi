@@ -1,0 +1,16 @@
+import type { MemoryCommand, MemoryDeliveryReport, MemoryPrepared, MemoryPrepareInput, MemorySnapshot, MemorySpeechInput, MemoryStopRequest } from '@proj-airi/stage-ui/services/memory/contracts'
+
+import { defineEventa, defineInvokeEventa } from '@moeru/eventa'
+
+export const memoryCommand = defineInvokeEventa<MemorySnapshot, MemoryCommand>('eventa:memory:command')
+export const memoryPrepare = defineInvokeEventa<MemoryPrepared, { referenceId: string, input: MemoryPrepareInput, deadlineAt: number }>('eventa:memory:prepare')
+export const memoryGate = defineInvokeEventa<{ allow: boolean }, { referenceId: string, kind: 'initial' | 'continuation' | 'retry' }>('eventa:memory:gate')
+export const memoryCancel = defineInvokeEventa<void, { referenceId: string }>('eventa:memory:cancel')
+export const memoryReport = defineInvokeEventa<void, { referenceId: string, report: MemoryDeliveryReport }>('eventa:memory:report')
+export const memoryDisplayed = defineInvokeEventa<void, { assistantMessageId: string }>('eventa:memory:displayed')
+export const memoryRegisterHost = defineInvokeEventa<void, { role: 'conversation' | 'speech' }>('eventa:memory:host:register')
+export const memoryUnregisterHost = defineInvokeEventa<void, { role: 'conversation' | 'speech' }>('eventa:memory:host:unregister')
+export const memoryStop = defineInvokeEventa<boolean, MemoryStopRequest>('eventa:memory:host:stop')
+export const memorySnapshotChanged = defineEventa<MemorySnapshot>('eventa:memory:snapshot')
+
+export const memorySpeechInput = defineInvokeEventa<boolean, MemorySpeechInput>('eventa:memory:host:speech-input')

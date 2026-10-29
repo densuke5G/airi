@@ -39,6 +39,7 @@ import { setupGodotStageManager } from './services/airi/godot-stage'
 import { setupBuiltInServer } from './services/airi/http-server'
 import { IOTraceRecordingService } from './services/airi/io-trace-recording'
 import { setupMcpStdioManager } from './services/airi/mcp-servers'
+import { setupMetrodorosService } from './services/airi/metrodoros'
 import { setupExtensionHost } from './services/airi/plugins'
 import { setupArtistryBridge } from './services/airi/widgets/artistry-bridge'
 import { setupAutoUpdater } from './services/electron/auto-updater'
@@ -229,6 +230,11 @@ app.whenReady().then(async () => {
     build: ({ dependsOn }) => setupAppleVisionService(dependsOn),
   })
 
+  const metrodoros = injeca.provide('modules:metrodoros', {
+    dependsOn: { lifecycle },
+    build: ({ dependsOn }) => setupMetrodorosService({ ...dependsOn, ipcMain }),
+  })
+
   const mcpStdioManager = injeca.provide('modules:mcp-stdio-manager', {
     build: async () => setupMcpStdioManager(),
   })
@@ -338,7 +344,7 @@ app.whenReady().then(async () => {
   })
 
   const mainWindow = injeca.provide('windows:main', {
-    dependsOn: { editorWindow, settingsWindow, chatWindow, widgetsManager, noticeWindow, beatSync, autoUpdater, serverChannel, godotStageManager, mcpStdioManager, i18n, onboardingWindowManager, appleSpeechTranscription, appleVision, ioTraceRecording },
+    dependsOn: { editorWindow, settingsWindow, chatWindow, widgetsManager, noticeWindow, beatSync, autoUpdater, serverChannel, godotStageManager, mcpStdioManager, i18n, onboardingWindowManager, appleSpeechTranscription, appleVision, ioTraceRecording, metrodoros },
     build: async ({ dependsOn }) => setupMainWindow({
       ...dependsOn,
       onWindowCreated: (window) => {

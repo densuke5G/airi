@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { WIP } from '@proj-airi/stage-ui/components'
+import { MemorySettingsPanel } from '@proj-airi/stage-ui/components'
 </script>
 
 <template>
-  <WIP />
+  <MemorySettingsPanel mode="short-term" />
 </template>
 
 <route lang="yaml">

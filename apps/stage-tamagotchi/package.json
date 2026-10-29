@@ -56,6 +56,7 @@
     "@guiiai/logg": "catalog:",
     "@huggingface/transformers": "catalog:",
     "@intlify/core": "catalog:",
+    "@metrodoros/airi-adapter": "file:../../vendor/metrodoros/metrodoros-airi-adapter-0.1.1-af1bca2d7c05.tgz",
     "@moeru/eventa": "catalog:",
     "@moeru/std": "catalog:",
     "@pinia/colada": "catalog:",
