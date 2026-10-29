@@ -79,7 +79,12 @@
       "ok": true
     },
     "revoked_client_auth_rejected": {
-      "ok": true
+      "ok": true,
+      "detail": {
+        "status": 401,
+        "rowsChanged": 1,
+        "rowsChangedType": "number"
+      }
     }
   },
   "gaps": [],

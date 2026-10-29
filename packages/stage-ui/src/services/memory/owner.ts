@@ -226,12 +226,13 @@ export class MemoryOwner {
           await this.stopConnection(true)
           break
         case 'refresh':
-          if (this.bridge) {
+          if (this.bridge && this.snapshot.connected) {
             await this.bridge.syncNotifications()
             this.snapshot.lastSync = Date.now()
             await this.loadMetadata()
           }
           else if (this.token.present) {
+            await this.stopConnection(false)
             await this.connect()
           }
           break
@@ -503,7 +504,11 @@ export class MemoryOwner {
         await this.publish()
       }
       catch {
+        if (signal.aborted || this.bridge !== bridge)
+          return
         await bridge.notificationDisconnected().catch(() => undefined)
+        if (signal.aborted || this.bridge !== bridge)
+          return
         this.snapshot.connected = false
         this.snapshot.reason = 'sync_required'
         this.tasks?.abort()

@@ -160,6 +160,10 @@ jobs:
       - run: pnpm run test:run
         env:
           NODE_OPTIONS: --no-experimental-webstorage
+      - name: Verify memory host and settings contracts
+        run: pnpm -F @proj-airi/stage-ui exec vitest run src/services/memory src/stores/chat.contract.test.ts src/components/scenarios/settings/memory/memory-settings-panel.browser.test.ts
+        env:
+          NODE_OPTIONS: --no-experimental-webstorage
 
   typecheck:
     name: Type Check
