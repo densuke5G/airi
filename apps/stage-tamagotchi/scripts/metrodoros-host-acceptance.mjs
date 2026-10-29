@@ -278,7 +278,7 @@ try {
   const revoked = authDb.prepare('UPDATE clients SET revoked=1 WHERE lower(client_id)=lower(?)').run(provisioned.client_id)
   authDb.close()
   const revokedIdentity = await fetch(`${endpoint}/v1/airi/connection`, { headers: { authorization: `Bearer ${provisioned.token}` } })
-  mark('revoked_client_auth_rejected', revoked.changes === 1 && revokedIdentity.status === 401)
+  mark('revoked_client_auth_rejected', Number(revoked.changes) === 1 && revokedIdentity.status === 401, { status: revokedIdentity.status, rowsChanged: Number(revoked.changes), rowsChangedType: typeof revoked.changes })
   await owner.dispose()
   owner = undefined
   await service.close()

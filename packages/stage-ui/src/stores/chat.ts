@@ -28,6 +28,7 @@ import {
   AIRI_CHAT_SESSION_ID_HEADER,
 } from '../libs/product-signals/headers'
 import { getMemoryConnection, getOptionalMemoryConnection } from '../services/memory/connection'
+import { restoreMemorySourceText } from '../services/memory/source-text'
 import { useLLM } from './ai/chat-llm/llm'
 import { resolveLlmTools } from './ai/chat-llm/tool-resolver'
 import { useLlmToolsStore } from './ai/chat-llm/tools'
@@ -495,7 +496,7 @@ export const useChatStore = defineStore('chat', () => {
           return enabled ? [] : [turn]
         if (turn.type === 'user') {
           const source = sourceMessages.find(message => message.role === 'user' && message.id && (message.id === turn.id || `${message.id}-0` === turn.id))
-          return source?.id ? [{ ...turn, id: source.id }] : [turn]
+          return source?.id && source.role === 'user' ? [{ ...(enabled ? restoreMemorySourceText(turn, source.content) : turn), id: source.id }] : [turn]
         }
         const index = availableAssistants.findIndex(message => message.id && (message.generationTranscript?.id === turn.id || message.id === turn.id || `${message.id}-0` === turn.id))
         const source = index >= 0 ? availableAssistants.splice(index, 1)[0] : undefined
