@@ -4,9 +4,9 @@ import { randomUUID } from 'node:crypto'
 // Rerunnable host acceptance probe. Run with Node 24 and AIRI's tsx loader.
 // This file intentionally emits only redacted assertions and stable error codes.
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 // pnpm exec tsx apps/stage-tamagotchi/scripts/metrodoros-host-acceptance.mjs --metrodoros-root <checkout> --output <report.json>
@@ -16,6 +16,12 @@ const outputIndex = args.indexOf('--output')
 if (rootIndex < 0 || !args[rootIndex + 1] || outputIndex < 0 || !args[outputIndex + 1])
   throw new Error('Pass --metrodoros-root and --output')
 const METRO = resolve(args[rootIndex + 1])
+// NOTICE:
+// Use the server's SQLite library for probes against its live database.
+// Separate SQLite libraries in one process cannot coordinate POSIX locks.
+// Source: https://sqlite.org/howtocorrupt.html#multiple_copies_of_sqlite_linked_into_the_same_application
+// Remove this boundary when database probes run in a separate process.
+const ServerDatabase = createRequire(join(METRO, 'package.json'))('better-sqlite3')
 const AIRI = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
 const OUTPUT = resolve(args[outputIndex + 1])
 const report = { schema: '08.1-host-acceptance/v1', realHttp: true, realSqlite: true, realAiriOwner: true, realModel: false, irodori: false, checks: {}, gaps: [] }
@@ -186,7 +192,7 @@ try {
     const wrongGate = await owner.gate('other-actor', prepared.referenceId, 'initial')
     const rightGate = await owner.gate('acceptance-conversation', prepared.referenceId, 'initial')
     mark('owner_gate_actor_and_send', !wrongGate.allow && rightGate.allow)
-    const database = new DatabaseSync(resolve(sandbox, 'data/metrodoros.sqlite'))
+    const database = new ServerDatabase(resolve(sandbox, 'data/metrodoros.sqlite'))
     const pinned = await waitFor(async () => database.prepare('SELECT llm_profile_id,llm_profile_revision FROM consolidation_turn_profiles LIMIT 1').get(), Boolean, 'model_profile_pin')
     mark('server_pinned_exact_model_versions', pinned.llm_profile_id === modelProfile.profile_id && pinned.llm_profile_revision === modelProfile.revision)
     const audioKey = { intentId: 'acceptance-intent', streamId: 'acceptance-stream', segmentId: 'acceptance-segment' }
@@ -274,7 +280,7 @@ try {
   await owner.command({ kind: 'connect', token: provisioned.token })
   mark('reconnect_identity_namespace_stable', owner && namespaceBeforeDisconnect === (report.storageNamespace ?? null))
   stage = 'revoke_temporary_client'
-  const authDb = new DatabaseSync(join(sandbox, 'data', 'metrodoros.sqlite'))
+  const authDb = new ServerDatabase(join(sandbox, 'data', 'metrodoros.sqlite'))
   const revoked = authDb.prepare('UPDATE clients SET revoked=1 WHERE lower(client_id)=lower(?)').run(provisioned.client_id)
   authDb.close()
   const revokedIdentity = await fetch(`${endpoint}/v1/airi/connection`, { headers: { authorization: `Bearer ${provisioned.token}` } })
