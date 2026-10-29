@@ -114,4 +114,13 @@ describe('memoryOwner acceptance', () => {
     expect(proposal.profile.modelBindings).toEqual({})
     await owner.dispose()
   })
+  it('preserves the explicitly chosen model versions and rejects partial replacement', async () => {
+    const owner = new MemoryOwner(options())
+    const command = { kind: 'bind-model', providerId: 'provider', model: 'model', externalProfileId: 'profile', bindingRevision: 2, profileId: '10000000-0000-4000-8000-000000000001', profileRevision: 3 } as const
+    const saved = await owner.command(command)
+    expect(saved.profile.modelBindings[JSON.stringify(['provider', 'model'])]).toEqual({ externalProfileId: command.externalProfileId, bindingRevision: 2, profileId: command.profileId, profileRevision: 3 })
+    await expect(owner.command({ ...command, profileRevision: undefined })).rejects.toThrow()
+    expect((await owner.command({ kind: 'snapshot' })).profile).toEqual(saved.profile)
+    await owner.dispose()
+  })
 })

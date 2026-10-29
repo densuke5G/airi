@@ -204,6 +204,7 @@ pages:
     status-label: 接続状態
     connection-error: 記憶の接続を確認できません。接続先を確認して再試行してください。
     reasons:
+      model_binding_invalid: プロフィールのUUIDと正の整数のリビジョンを入力するか、3項目をすべて空にしてください。
       sqlite_unavailable: 'ローカル記憶ストレージを開始できません。デスクトップ環境を確認して再接続してください。'
       saved_settings_invalid: '保存済みの記憶設定を読み込めません。ローカル設定を修復してから接続してください。'
       loopback_required: '127.0.0.1 または localhost のローカル接続先を指定してください。'
@@ -273,6 +274,10 @@ pages:
     active-model: '現在のAIRIモデル: {provider} / {model}'
     binding-version: '紐付けリビジョン {binding} · プロフィール {profile} · プロフィールリビジョン {revision}'
     unknown: 不明
+    binding-revision: 紐付けリビジョン
+    profile-id: MetrodorosプロフィールID
+    profile-revision: プロフィールリビジョン
+    pin-note: サーバーに設定したプロフィールと紐付けの版を入力してください。3項目をすべて空にすると、整理はモデル対応の確認待ちになります。
     external-profile: 外部プロフィールID
     bind-model: モデルの紐付けを保存
     management-unavailable: 記憶の編集、忘却、インポート、エクスポートの管理機能はここでは利用できません。

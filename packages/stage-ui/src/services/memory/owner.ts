@@ -139,7 +139,7 @@ export class MemoryOwner {
     this.snapshot.configured = this.snapshot.profile.enabled
       && this.snapshot.profile.worldId !== null
       && this.snapshot.profile.cardBindings.length > 0
-      && Object.keys(this.snapshot.profile.modelBindings).length > 0
+      && Object.values(this.snapshot.profile.modelBindings).some(binding => binding.bindingRevision != null && binding.profileId != null && binding.profileRevision != null)
       && this.conversationHost !== undefined && this.speechHost !== undefined
       && this.snapshot.connected
     const snapshot = structuredClone(this.snapshot)
@@ -274,7 +274,7 @@ export class MemoryOwner {
           const key = JSON.stringify([command.providerId, command.model])
           const profile = this.checkedProfile({ ...this.snapshot.profile, modelBindings: {
             ...this.snapshot.profile.modelBindings,
-            [key]: { externalProfileId: command.externalProfileId },
+            [key]: { externalProfileId: command.externalProfileId, ...(command.profileId !== undefined || command.bindingRevision !== undefined || command.profileRevision !== undefined ? { bindingRevision: command.bindingRevision, profileId: command.profileId, profileRevision: command.profileRevision } : {}) },
           } })
           await this.stopConnection(false)
           this.snapshot.profile = profile

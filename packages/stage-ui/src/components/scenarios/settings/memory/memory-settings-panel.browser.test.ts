@@ -111,6 +111,10 @@ function createTestI18n() {
               'model-note': 'Bind external profile.',
               'active-model': 'Current AIRI model: {provider} / {model}',
               'external-profile': 'External profile ID',
+              'binding-revision': 'Binding revision',
+              'profile-id': 'Metrodoros profile ID',
+              'profile-revision': 'Profile revision',
+              'pin-note': 'Pin exact versions for consolidation.',
               'bind-model': 'Save model binding',
               'management-unavailable': 'Memory management is not available here.',
               'error': 'Memory action failed.',
@@ -189,5 +193,22 @@ describe('memory settings panel', () => {
     await screen.getByRole('button', { name: 'Start a new conversation' }).click()
     expect(testState.memory.run).toHaveBeenCalledWith({ kind: 'new-conversation', airiSessionId: 'session-1' })
     expect(testState.sessions.createSession).not.toHaveBeenCalled()
+  })
+  it('saves explicit server versions for the inherited provider and model', async () => {
+    const screen = await render(MemorySettingsPanel, { props: { mode: 'long-term' }, global: { plugins: [createTestI18n()] } })
+    await screen.getByLabelText('External profile ID').fill('external-profile-2')
+    await screen.getByLabelText('Binding revision', { exact: true }).fill('2')
+    await screen.getByLabelText('Metrodoros profile ID').fill('10000000-0000-4000-8000-000000000001')
+    await screen.getByLabelText('Profile revision', { exact: true }).fill('3')
+    await screen.getByRole('button', { name: 'Save model binding' }).click()
+    expect(testState.memory.run).toHaveBeenCalledWith({ kind: 'bind-model', providerId: 'inherited-provider', model: 'inherited-model', externalProfileId: 'external-profile-2', bindingRevision: 2, profileId: '10000000-0000-4000-8000-000000000001', profileRevision: 3 })
+  })
+
+  it('keeps a partial model version out of saved settings', async () => {
+    const screen = await render(MemorySettingsPanel, { props: { mode: 'long-term' }, global: { plugins: [createTestI18n()] } })
+    await screen.getByLabelText('External profile ID').fill('external-profile-2')
+    await screen.getByLabelText('Binding revision', { exact: true }).fill('2')
+    await screen.getByRole('button', { name: 'Save model binding' }).click()
+    expect(testState.memory.run.mock.calls.some(([command]) => command.kind === 'bind-model')).toBe(false)
   })
 })

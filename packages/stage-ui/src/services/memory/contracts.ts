@@ -44,7 +44,7 @@ export type MemoryCommand
     | { kind: 'bind-card', cardId: string, characterId: string, worldId: string }
     | { kind: 'propose-persona', card: { cardId: string, name?: string, description?: string, personality?: string, scenario?: string } }
     | { kind: 'approve-persona', candidateId: string, digest: string }
-    | { kind: 'bind-model', providerId: string, model: string, externalProfileId: string }
+    | { kind: 'bind-model', providerId: string, model: string, externalProfileId: string, bindingRevision?: number, profileId?: string, profileRevision?: number }
 
 /** All identities belong to the actor and selection captured before preparation. */
 export interface MemoryPrepareInput {

@@ -286,6 +286,7 @@ pages:
     status-label: Connection status
     connection-error: The memory connection needs attention. Check the address and try again.
     reasons:
+      model_binding_invalid: Enter a profile UUID and positive whole-number revisions, or leave all three empty.
       sqlite_unavailable: 'Local memory storage could not start. Check the desktop runtime and reconnect.'
       saved_settings_invalid: 'Saved memory settings could not be read. Repair the local settings before connecting.'
       loopback_required: 'Use a local address such as 127.0.0.1 or localhost.'
@@ -355,6 +356,10 @@ pages:
     active-model: 'Current AIRI model: {provider} / {model}'
     binding-version: 'Binding revision {binding} · profile {profile} · profile revision {revision}'
     unknown: Unknown
+    binding-revision: Binding revision
+    profile-id: Metrodoros profile ID
+    profile-revision: Profile revision
+    pin-note: Enter the exact profile and binding versions configured on the server. Leave all three empty to keep consolidation waiting for a mapping.
     external-profile: External profile ID
     bind-model: Save model binding
     management-unavailable: Memory editing, forgetting, and import or export management are not available here.

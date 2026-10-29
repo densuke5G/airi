@@ -27,6 +27,9 @@
     "missing_model_binding_not_configured": {
       "ok": true
     },
+    "unresolved_model_versions_not_configured": {
+      "ok": true
+    },
     "owner_enabled_and_synchronized": {
       "ok": true
     },
@@ -34,6 +37,9 @@
       "ok": true
     },
     "owner_gate_actor_and_send": {
+      "ok": true
+    },
+    "server_pinned_exact_model_versions": {
       "ok": true
     },
     "speech_reports_routed": {
@@ -46,6 +52,9 @@
       "ok": true
     },
     "real_output_commit": {
+      "ok": true
+    },
+    "audio_delivery_turn_closed_at_server": {
       "ok": true
     },
     "display_unavailable_timeout_commits_without_receipt": {

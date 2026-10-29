@@ -158,8 +158,16 @@ try {
   profile = { ...profile, enabled: true }
   const withoutModelBinding = await owner.command({ kind: 'save', profile })
   mark('missing_model_binding_not_configured', withoutModelBinding.connected && !withoutModelBinding.configured)
-  profile = { ...profile, modelBindings: { [JSON.stringify(['acceptance-provider', 'acceptance-model'])]: { externalProfileId: 'acceptance-profile' } } }
-  connected = await owner.command({ kind: 'save', profile })
+  const unresolved = await owner.command({ kind: 'bind-model', providerId: 'acceptance-provider', model: 'acceptance-model', externalProfileId: 'acceptance-profile' })
+  mark('unresolved_model_versions_not_configured', unresolved.connected && !unresolved.configured)
+  const profileResponse = await fetch(`${endpoint}/v1/llm-profiles`, { method: 'POST', headers: { ...identityHeaders, 'idempotency-key': `acceptance-profile-${randomUUID()}` }, body: JSON.stringify({ provider: 'acceptance', model: 'acceptance-model', base_url: 'http://127.0.0.1:1', secret_ref: null, capabilities: { structured_output: false, max_input_tokens: 8000, max_output_tokens: 1000, supports_cancel: true, resource_class: 'remote' } }) })
+  if (!profileResponse.ok)
+    throw new Error('acceptance.model_profile_create_failed')
+  const modelProfile = await profileResponse.json()
+  const modelBindingResponse = await fetch(`${endpoint}/v1/llm-bindings/acceptance-profile`, { method: 'PUT', headers: { ...identityHeaders, 'idempotency-key': `acceptance-model-binding-${randomUUID()}` }, body: JSON.stringify({ profile_id: modelProfile.profile_id, expected_revision: 0 }) })
+  if (!modelBindingResponse.ok)
+    throw new Error('acceptance.model_profile_bind_failed')
+  connected = await owner.command({ kind: 'bind-model', providerId: 'acceptance-provider', model: 'acceptance-model', externalProfileId: 'acceptance-profile', bindingRevision: 1, profileId: modelProfile.profile_id, profileRevision: modelProfile.revision })
   mark('owner_enabled_and_synchronized', connected.configured && connected.connected && connected.identity?.store_generation === identity.store_generation)
 
   stage = 'prepare_turn'
@@ -178,11 +186,19 @@ try {
     const wrongGate = await owner.gate('other-actor', prepared.referenceId, 'initial')
     const rightGate = await owner.gate('acceptance-conversation', prepared.referenceId, 'initial')
     mark('owner_gate_actor_and_send', !wrongGate.allow && rightGate.allow)
+    const database = new DatabaseSync(resolve(sandbox, 'data/metrodoros.sqlite'))
+    const pinned = await waitFor(async () => database.prepare('SELECT llm_profile_id,llm_profile_revision FROM consolidation_turn_profiles LIMIT 1').get(), Boolean, 'model_profile_pin')
+    mark('server_pinned_exact_model_versions', pinned.llm_profile_id === modelProfile.profile_id && pinned.llm_profile_revision === modelProfile.revision)
+    const audioKey = { intentId: 'acceptance-intent', streamId: 'acceptance-stream', segmentId: 'acceptance-segment' }
+    await owner.report('acceptance-speech', prepared.referenceId, { kind: 'tts-request', key: audioKey, text: 'synthetic acceptance output' })
+    await owner.report('acceptance-speech', prepared.referenceId, { kind: 'playback-start', key: audioKey })
     await owner.report('acceptance-conversation', prepared.referenceId, { kind: 'speech-input', type: 'start' })
     await owner.report('acceptance-conversation', prepared.referenceId, { kind: 'speech-input', type: 'end' })
     await owner.report('acceptance-conversation', prepared.referenceId, { kind: 'llm-finished', outcome: 'completed', text: 'synthetic acceptance output', assistantMessageId: 'acceptance-assistant' })
     await owner.displayed('acceptance-assistant')
     await owner.report('acceptance-speech', prepared.referenceId, { kind: 'speech-complete' })
+    await owner.report('acceptance-speech', prepared.referenceId, { kind: 'playback-end', key: audioKey })
+    await owner.report('acceptance-speech', prepared.referenceId, { kind: 'intent-end', intentId: audioKey.intentId })
     await waitFor(async () => await owner.command({ kind: 'snapshot' }), snapshot => !!snapshot.connected, 'post_delivery_connection')
     mark('speech_reports_routed', speechLog.join(',') === 'start,end')
     mark('dom_receipt_reported', true)
@@ -190,6 +206,9 @@ try {
     mark('real_output_endpoint_responded', outputLogged)
     const outputStateLogged = await waitFor(async () => serviceLogs.some(entry => entry.route.endsWith('/state') && entry.route.startsWith('/v1/outputs/') && entry.result_code === '200'), Boolean, 'output_state_commit')
     mark('real_output_commit', outputStateLogged)
+    const closed = await waitFor(async () => Number(database.prepare('SELECT COUNT(*) AS count FROM source_events se JOIN source_bodies sb USING(source_id) WHERE se.event_type=\'activity\' AND json_extract(sb.payload_json,\'$.kind\')=\'turn_closed\'').get().count) > 0, Boolean, 'audio_turn_closed')
+    mark('audio_delivery_turn_closed_at_server', closed)
+    database.close()
 
     stage = 'display_unavailable_timeout'
     const noDisplaySession = randomUUID()

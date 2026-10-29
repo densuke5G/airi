@@ -24,6 +24,9 @@ const token = ref('')
 const characterName = ref('')
 const worldName = ref('')
 const externalProfileId = ref('')
+const bindingRevision = ref<number>()
+const modelProfileId = ref('')
+const modelProfileRevision = ref<number>()
 const characterId = ref(memory.snapshot.profile.cardBindings.find(binding => binding.cardId === cards.activeCardId)?.characterId ?? '')
 const worldId = ref(memory.snapshot.profile.worldId ?? '')
 const error = ref<string | null>(null)
@@ -163,7 +166,12 @@ async function bindModel() {
   const model = consciousness.activeModel
   if (!model || !providerId || !externalProfileId.value.trim())
     return
-  await run({ kind: 'bind-model', providerId, model, externalProfileId: externalProfileId.value.trim() })
+  const hasVersions = bindingRevision.value !== undefined || modelProfileId.value.trim() !== '' || modelProfileRevision.value !== undefined
+  if (hasVersions && (!Number.isSafeInteger(bindingRevision.value) || (bindingRevision.value ?? 0) < 1 || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(modelProfileId.value.trim()) || !Number.isSafeInteger(modelProfileRevision.value) || (modelProfileRevision.value ?? 0) < 1)) {
+    error.value = 'memory.model_binding_invalid'
+    return
+  }
+  await run({ kind: 'bind-model', providerId, model, externalProfileId: externalProfileId.value.trim(), ...(hasVersions ? { bindingRevision: bindingRevision.value, profileId: modelProfileId.value.trim(), profileRevision: modelProfileRevision.value } : {}) })
 }
 </script>
 
@@ -350,6 +358,14 @@ async function bindModel() {
           </li>
         </ul>
         <FieldInput v-model="externalProfileId" autocomplete="off" :label="t('settings.pages.memory-panel.external-profile')" />
+        <div v-if="externalProfileId.trim()" :class="['mt-3 flex flex-col gap-3']">
+          <p :class="['text-xs text-neutral-500 dark:text-neutral-400']">
+            {{ t('settings.pages.memory-panel.pin-note') }}
+          </p>
+          <FieldInput v-model="bindingRevision" type="number" :label="t('settings.pages.memory-panel.binding-revision')" />
+          <FieldInput v-model="modelProfileId" autocomplete="off" :label="t('settings.pages.memory-panel.profile-id')" />
+          <FieldInput v-model="modelProfileRevision" type="number" :label="t('settings.pages.memory-panel.profile-revision')" />
+        </div>
         <BasicButton :class="['mt-3']" :disabled="busy || !externalProfileId.trim()" @click="bindModel">
           {{ t('settings.pages.memory-panel.bind-model') }}
         </BasicButton>
