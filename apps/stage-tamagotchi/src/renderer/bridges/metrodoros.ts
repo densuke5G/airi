@@ -47,6 +47,8 @@ export function initializeMemoryConnection(context: ReturnType<typeof createCont
     configure: update => defineInvoke(context, desktopMemorySettingsCommand)({ kind: 'configure', update }),
     retry: () => defineInvoke(context, desktopMemorySettingsCommand)({ kind: 'retry' }),
     forget: () => defineInvoke(context, desktopMemorySettingsCommand)({ kind: 'forget' }),
+    saveConsolidationKey: credential => defineInvoke(context, desktopMemorySettingsCommand)({ kind: 'save-consolidation-key', credential }),
+    forgetConsolidationKey: () => defineInvoke(context, desktopMemorySettingsCommand)({ kind: 'forget-consolidation-key' }),
     subscribe: listener => context.on(desktopMemorySettingsSnapshotChanged, (event) => {
       if (event.body)
         listener(event.body)

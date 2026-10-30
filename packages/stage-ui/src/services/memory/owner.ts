@@ -257,7 +257,7 @@ export class MemoryOwner {
         case 'create-character':
           await this.requireIdentity().createCharacter({ display_name: command.name, profile: {
             name: command.name,
-            first_person: '',
+            first_person: command.firstPerson,
             speaking_style: '',
             background: '',
             values: [],

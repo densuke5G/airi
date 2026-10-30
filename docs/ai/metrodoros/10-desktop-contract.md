@@ -85,3 +85,29 @@ Saved identities are checked before the owner opens a generation-specific outbox
 Authentication rejection, store changes, and endpoint changes require explicit registration.
 Disconnect cancels pending work and suppresses automatic reconnect for the current run.
 The launcher never shuts down the service when AIRI exits.
+
+## Consolidation provider key
+
+The user can save the current configured AIRI Chat Completions provider key through an explicit desktop settings action.
+Main confirms the source provider, model, base URL, and service target in a native dialog. It never displays the key.
+`EncryptedRecordStore` owns OS encryption, bounded records, path checks, atomic writes, and serialized deletion for both credential types.
+`ConsolidationKeyStore` binds its separate encrypted record to the installation, executable, server directory, data directory, and endpoint.
+Status contains source metadata and presence only. It contains no key or ciphertext.
+
+Before spawning a new service, the launcher decrypts the matching record.
+It passes `METRODOROS_LLM_API_KEY` and `METRODOROS_LLM_API_KEY_BASE_URL` in that child's environment only.
+It does not modify AIRI's process environment, command arguments, or ordinary settings files.
+Metrodoros checks the LLM profile's base URL against the bound destination before resolving this key.
+An unrecognized destination, changed target, corrupt record, or unavailable OS encryption cannot supply the stored key.
+
+Reusing an already running service does not decrypt or replace its environment. Saving or deleting a key requires restarting that service to change its loaded key.
+Saving a provider key does not create the server LLM profile or update model bindings.
+Provider key rotation requires an explicit save again. Deleting this copy does not revoke the provider key.
+
+## Character setup state
+
+Creation commands carry a nonempty first-person pronoun. The settings form validates the server's 1–20 character bound.
+The owner passes this explicit value to the identity API. Failed creation retains the entered name.
+Authenticated connections without a conversation selection expose specific `no_character` guidance.
+Character and world drafts survive background snapshots until a successful bind. Failed binds retain both choices.
+Changing the active AIRI Card discards that card's draft and reads the new card's saved mapping.

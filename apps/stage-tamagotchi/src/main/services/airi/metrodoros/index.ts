@@ -21,6 +21,7 @@ import { app, BrowserWindow, dialog } from 'electron'
 import * as v from 'valibot'
 
 import { desktopMemorySettingsCommand, desktopMemorySettingsSnapshotChanged, memoryCancel, memoryCommand, memoryDisplayed, memoryGate, memoryPrepare, memoryRegisterHost, memoryReport, memorySnapshotChanged, memorySpeechInput, memoryStop, memoryUnregisterHost } from '../../../../shared/eventa/metrodoros'
+import { CONSOLIDATION_KEY_ENV, consolidationKeySchema, ConsolidationKeyStore } from './consolidation-key-store'
 import { CredentialStore } from './credential-store'
 import { DesktopLauncher } from './desktop-launcher'
 import { forgetWhenRememberingDisabled, hasRequiredMemoryHosts, requiresLaunchRegistration, requiresRegistrationAfterAutomaticFailure } from './desktop-policy'
@@ -117,12 +118,14 @@ export async function setupMetrodorosService(options: { lifecycle: Lifecycle, ip
   const desktopSettingsPath = join(directory, 'desktop-settings.json')
   const installationId = await loadInstallationId(installPath)
   const credentialStore = new CredentialStore(join(directory, 'credentials'), installationId)
-  const launcher = new DesktopLauncher()
+  const consolidationKeyStore = new ConsolidationKeyStore(join(directory, 'credentials'), installationId)
+  const launcher = new DesktopLauncher(async profile => await consolidationKeyStore.load(profile))
   let owner: MemoryOwner
   let desktopSettings = await loadDesktopSettings(desktopSettingsPath)
   let memoryEndpoint = 'http://127.0.0.1:47831'
   let credentialAvailable = false
   let credentialSaved = false
+  let consolidationStatus: Awaited<ReturnType<ConsolidationKeyStore['status']>> = { saved: false, targetMatches: false, source: null, error: null }
   let desktopError: string | null = null
   let desktopGeneration = 0
   let startupLaunchAttempted = false
@@ -180,6 +183,9 @@ export async function setupMetrodorosService(options: { lifecycle: Lifecycle, ip
       credentialAvailable,
       credentialSaved,
       needsRegistration: desktopSettings.needsRegistration,
+      consolidationKeySaved: consolidationStatus.saved,
+      consolidationKeyTargetMatches: consolidationStatus.targetMatches,
+      consolidationSource: consolidationStatus.source,
       error: desktopError,
     }
   }
@@ -296,6 +302,11 @@ export async function setupMetrodorosService(options: { lifecycle: Lifecycle, ip
       const status = await credentialStore.status()
       credentialAvailable = status.available
       credentialSaved = status.saved
+      consolidationStatus = await consolidationKeyStore.status(launchProfile(true))
+      if (consolidationStatus.error)
+        desktopError = consolidationStatus.error
+      else if (desktopError === 'memory.consolidation_key_unavailable')
+        desktopError = null
     }
     catch (error) {
       desktopAvailableFromError(error)
@@ -354,8 +365,51 @@ export async function setupMetrodorosService(options: { lifecycle: Lifecycle, ip
         startupLaunchAttempted = false
       if (previous.autoConnect !== desktopSettings.autoConnect || previous.rememberToken !== desktopSettings.rememberToken || launchChanged)
         invalidateAutomaticWork(false)
+      await getDesktopSettingsSnapshot()
       publishDesktopSettings()
       void maybeConnectAutomatically()
+      return await getDesktopSettingsSnapshot()
+    }
+    if (command.kind === 'save-consolidation-key') {
+      const parsed = v.safeParse(v.strictObject({ kind: v.literal('save-consolidation-key'), credential: consolidationKeySchema }), command)
+      if (!parsed.success)
+        throw new Error('memory.consolidation_key_invalid')
+      if (!desktopSettings.nodePath || !desktopSettings.serverRoot || !desktopSettings.dataDir || window.isDestroyed())
+        throw new Error('memory.consolidation_key_target_invalid')
+      const credential = parsed.output.credential
+      const profile = launchProfile(true)
+      const key = 'settings.pages.memory-panel.desktop.'
+      const confirmation = await dialog.showMessageBox(window, {
+        type: 'question',
+        title: options.i18n.t(`${key}key-confirm-title`),
+        message: options.i18n.t(`${key}key-confirm-message`),
+        detail: `${credential.providerId} / ${credential.model}\n${credential.baseUrl}\n${CONSOLIDATION_KEY_ENV}\n${profile.nodePath}\n${profile.serverRoot}\n${profile.dataDir}\n${profile.endpoint}`,
+        buttons: [options.i18n.t(`${key}launch-confirm-cancel`), options.i18n.t(`${key}key-confirm-save`)],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true,
+      })
+      if (window.isDestroyed())
+        throw new Error('memory.registration_cancelled')
+      if (confirmation.response !== 1)
+        return await getDesktopSettingsSnapshot()
+      if (JSON.stringify(launchProfile(true)) !== JSON.stringify(profile))
+        throw new Error('memory.consolidation_key_target_changed')
+      invalidateAutomaticWork(false)
+      await consolidationKeyStore.save(profile, credential)
+      desktopError = null
+      consolidationStatus = await consolidationKeyStore.status(launchProfile(true))
+      publishDesktopSettings()
+      return await getDesktopSettingsSnapshot()
+    }
+    if (command.kind === 'forget-consolidation-key') {
+      if (!v.safeParse(v.strictObject({ kind: v.literal('forget-consolidation-key') }), command).success)
+        throw new Error('memory.desktop_command_invalid')
+      invalidateAutomaticWork(false)
+      await consolidationKeyStore.forget()
+      consolidationStatus = { saved: false, targetMatches: false, source: null, error: null }
+      desktopError = null
+      publishDesktopSettings()
       return await getDesktopSettingsSnapshot()
     }
     if (command.kind === 'retry') {

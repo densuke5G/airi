@@ -63,3 +63,41 @@ The Windows storage harness verifies the credential boundary across two processe
 The full AIRI startup, service spawn, automatic synchronization, and live voice conversation still need one combined manual acceptance.
 Actual sleep/wake, long-running use, and mixed model load are not verified.
 Default-off settings allow these operations to remain explicit while that acceptance continues.
+
+## Consolidation key extension, 2026-10-31
+
+The desktop panel can copy the current configured AIRI provider API key into a separate OS-encrypted record after native confirmation.
+Only Chat Completions providers with a configured API key and safe base URL are eligible.
+Paths must be saved first. Service target changes require saving the key again.
+The saved source remains explicit when AIRI provider settings change. It does not refresh the copy silently.
+
+Main decrypts the record only for an authorized new service spawn.
+The child receives the key and provider base URL in fixed environment slots. AIRI's environment and command arguments remain unchanged.
+Metrodoros rejects a mismatched provider destination before resolving the key.
+An existing ready service is reused without changing its environment. Key replacement and deletion take effect after service restart.
+
+Desktop tests pass: six files and 61 tests. Shared owner/UI tests pass: three files and eight tests, including Chromium absence coverage.
+The root typecheck completes 55 tasks. The desktop build passes. Changed-file lint passes.
+Root lint still includes untracked local runtime/tools and fails. Product source lint has zero errors and 682 existing warnings.
+
+A real Windows harness saved a synthetic key with Electron 43.4.1 safeStorage.
+A separate Electron process received no key environment variable and loaded the record.
+The actual launcher passed it to a registered Node 24.19.0 child.
+That child used Metrodoros's production secret resolver and authenticated to a local synthetic provider endpoint.
+The resolver rejected a different destination. The saved record was deleted and the fixture service was closed gracefully.
+This proves the OS/process boundary with synthetic data. It does not run a live model or voice conversation.
+
+Sanitized runtime report: [Windows consolidation key](evidence/10-consolidation-key-windows.json).
+
+## Character setup corrections, 2026-10-31
+
+Character creation now sends an explicit first-person pronoun instead of an empty string.
+The form accepts 1–20 characters and retains the entered name after a failed request.
+Authenticated `no_character` status explains that character selection is pending instead of suggesting an address error.
+Background snapshots retain unsaved character and world choices, including a failed bind.
+A successful bind releases the draft. Changing the active AIRI Card loads that card's saved mapping.
+
+A real AIRI owner created a character through a temporary schema-8 HTTP server and read the saved pronoun.
+The server still rejected an empty pronoun. Existing user data and the running service were not used.
+Report: [character setup](evidence/10-character-setup-windows.json).
+The focused shared UI/owner run passes 20 tests, including five new Chromium regression cases.

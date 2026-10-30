@@ -26,6 +26,8 @@ const snapshot = computed(() => memory.snapshot)
 const profile = ref<MemoryProfile>(structuredClone(memory.snapshot.profile))
 const token = ref('')
 const characterName = ref('')
+const firstPerson = ref(t('settings.pages.memory-panel.first-person-default'))
+const firstPersonValid = computed(() => firstPerson.value.trim().length > 0 && [...firstPerson.value.trim()].length <= 20)
 const worldName = ref('')
 const externalProfileId = ref('')
 const bindingRevision = ref<number>()
@@ -33,6 +35,8 @@ const modelProfileId = ref('')
 const modelProfileRevision = ref<number>()
 const characterId = ref(memory.snapshot.profile.cardBindings.find(binding => binding.cardId === cards.activeCardId)?.characterId ?? '')
 const worldId = ref(memory.snapshot.profile.worldId ?? '')
+const characterSelectionDirty = ref(false)
+const worldSelectionDirty = ref(false)
 const error = ref<string | null>(null)
 const pending = ref(false)
 const busy = computed(() => pending.value || memory.busy)
@@ -58,12 +62,24 @@ function translatedReason(reason: string | null | undefined) {
 }
 
 watch(() => memory.snapshot.profile, value => profile.value = structuredClone(value), { deep: true })
-watch(() => memory.snapshot.profile.worldId, value => worldId.value = value ?? '')
-watch(() => memory.snapshot.profile.cardBindings, (bindings) => {
-  characterId.value = bindings.find(binding => binding.cardId === cards.activeCardId)?.characterId ?? ''
-}, { deep: true })
+watch(() => memory.snapshot.profile.worldId, (value) => {
+  if (!worldSelectionDirty.value)
+    worldId.value = value ?? ''
+})
+watch(() => memory.snapshot.profile.cardBindings.find(binding => binding.cardId === cards.activeCardId)?.characterId ?? '', (value) => {
+  if (!characterSelectionDirty.value)
+    characterId.value = value
+})
+watch(() => cards.activeCardId, () => {
+  characterSelectionDirty.value = false
+  worldSelectionDirty.value = false
+  characterId.value = memory.snapshot.profile.cardBindings.find(binding => binding.cardId === cards.activeCardId)?.characterId ?? ''
+  worldId.value = memory.snapshot.profile.worldId ?? ''
+})
 
 const statusText = computed(() => {
+  if (snapshot.value.connected && snapshot.value.reason === 'no_character')
+    return t('settings.pages.memory-panel.status.selection-required')
   if (snapshot.value.tokenRequired && profile.value.enabled)
     return t('settings.pages.memory-panel.status.token-required')
   return t(`settings.pages.memory-panel.status.${snapshot.value.state}`)
@@ -122,10 +138,10 @@ async function saveProfile() {
 
 async function createCharacter() {
   const name = characterName.value.trim()
-  if (!name)
+  if (!name || !firstPersonValid.value)
     return
-  await run({ kind: 'create-character', name })
-  characterName.value = ''
+  if (await run({ kind: 'create-character', name, firstPerson: firstPerson.value.trim() }))
+    characterName.value = ''
 }
 
 async function createWorld() {
@@ -147,7 +163,11 @@ async function startNewConversation() {
 async function bindCard() {
   if (!cards.activeCard || !characterId.value || !worldId.value)
     return
-  await run({ kind: 'bind-card', cardId: cards.activeCardId, characterId: characterId.value, worldId: worldId.value })
+  const command = { kind: 'bind-card', cardId: cards.activeCardId, characterId: characterId.value, worldId: worldId.value } as const
+  if (await run(command) && cards.activeCardId === command.cardId && characterId.value === command.characterId && worldId.value === command.worldId) {
+    characterSelectionDirty.value = false
+    worldSelectionDirty.value = false
+  }
 }
 
 async function proposePersona() {
@@ -302,8 +322,8 @@ async function bindModel() {
           {{ t('settings.pages.memory-panel.active-card', { name: cards.activeCard?.name ?? t('settings.pages.memory-panel.none') }) }}
         </p>
         <div :class="['flex flex-col gap-3', 'sm:flex-row']">
-          <FieldSelect v-model="characterId" :options="characterOptions" :label="t('settings.pages.memory-panel.character')" :placeholder="t('settings.pages.memory-panel.choose-character')" layout="vertical" />
-          <FieldSelect v-model="worldId" :options="worldOptions" :label="t('settings.pages.memory-panel.world')" :placeholder="t('settings.pages.memory-panel.choose-world')" layout="vertical" />
+          <FieldSelect v-model="characterId" :options="characterOptions" :label="t('settings.pages.memory-panel.character')" :placeholder="t('settings.pages.memory-panel.choose-character')" layout="vertical" @update:model-value="characterSelectionDirty = true" />
+          <FieldSelect v-model="worldId" :options="worldOptions" :label="t('settings.pages.memory-panel.world')" :placeholder="t('settings.pages.memory-panel.choose-world')" layout="vertical" @update:model-value="worldSelectionDirty = true" />
         </div>
         <div :class="['mt-3']">
           <BasicButton :disabled="busy || !cards.activeCard || !characterId || !worldId" @click="bindCard">
@@ -312,9 +332,12 @@ async function bindModel() {
         </div>
         <div :class="['mt-4 flex flex-col gap-2', 'sm:flex-row']">
           <FieldInput v-model="characterName" :label="t('settings.pages.memory-panel.new-character')" />
-          <BasicButton :disabled="busy || !characterName.trim()" @click="createCharacter">
+          <FieldInput v-model="firstPerson" :label="t('settings.pages.memory-panel.first-person')" />
+          <BasicButton :disabled="busy || !characterName.trim() || !firstPersonValid" @click="createCharacter">
             {{ t('settings.pages.memory-panel.create-character') }}
           </BasicButton>
+        </div>
+        <div :class="['mt-3 flex flex-col gap-2', 'sm:flex-row']">
           <FieldInput v-model="worldName" :label="t('settings.pages.memory-panel.new-world')" />
           <BasicButton :disabled="busy || !worldName.trim()" @click="createWorld">
             {{ t('settings.pages.memory-panel.create-world') }}

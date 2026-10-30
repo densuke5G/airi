@@ -1,0 +1,11 @@
+{
+  "realHttp": true,
+  "realSqlite": true,
+  "realAiriOwner": true,
+  "realLlm": false,
+  "authenticatedWithoutSelection": true,
+  "characterCreated": true,
+  "pronounPersisted": true,
+  "blankPronounRejected": true,
+  "ok": true
+}

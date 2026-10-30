@@ -1,6 +1,8 @@
 import type { ChildProcess } from 'node:child_process'
 import type { Stats } from 'node:fs'
 
+import type { DesktopConsolidationKey } from '@proj-airi/stage-ui/services/memory/desktop-settings'
+
 import process from 'node:process'
 
 import { spawn } from 'node:child_process'
@@ -254,7 +256,8 @@ export class DesktopLauncher {
   private activeAbortController: AbortController | undefined
   private serializedTail: Promise<unknown> = Promise.resolve()
 
-  constructor() {}
+  /** The optional reader runs only for a new process, after validating its registered paths. */
+  constructor(private readonly loadConsolidationKey?: (profile: LaunchProfile) => Promise<DesktopConsolidationKey | null>) {}
 
   async ensureReady(profile: LaunchProfile, signal?: AbortSignal): Promise<LaunchResult> {
     if (this.disposed)
@@ -399,12 +402,22 @@ export class DesktopLauncher {
         throw new Error('launcher.database_missing')
       await assertDataConfigMatchesEndpoint(profile.dataDir, profile.endpoint)
 
+      const consolidationKey = await this.loadConsolidationKey?.(profile)
+      if (internalSignal.aborted)
+        throw new Error('launcher.aborted')
+
       let child: ChildProcess
       try {
         child = spawn(profile.nodePath, [entryPath], {
           cwd: profile.serverRoot,
           env: {
             ...process.env,
+            ...(consolidationKey
+              ? {
+                  METRODOROS_LLM_API_KEY: consolidationKey.apiKey,
+                  METRODOROS_LLM_API_KEY_BASE_URL: consolidationKey.baseUrl,
+                }
+              : {}),
             METRODOROS_DATA_DIR: profile.dataDir,
           },
           shell: false,

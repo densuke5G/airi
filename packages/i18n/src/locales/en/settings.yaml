@@ -286,6 +286,7 @@ pages:
     status-label: Connection status
     connection-error: The memory connection needs attention. Check the address and try again.
     reasons:
+      no_character: The server is connected. Check the long-term memory card mapping, then start a conversation in the main window.
       model_binding_invalid: Enter a profile UUID and positive whole-number revisions, or leave all three empty.
       sqlite_unavailable: 'Local memory storage could not start. Check the desktop runtime and reconnect.'
       saved_settings_invalid: 'Saved memory settings could not be read. Repair the local settings before connecting.'
@@ -308,6 +309,7 @@ pages:
       connecting: Connecting
       syncing: Syncing
       ready: Connected
+      selection-required: Connected, waiting for a conversation character
       degraded: Connected with limited capability
       blocked: Connection blocked
       token-required: Re-enter the connection token to connect
@@ -341,6 +343,8 @@ pages:
     character: Metrodoros character
     choose-character: Choose an existing character
     new-character: New character name
+    first-person: First-person pronoun (1–20 characters)
+    first-person-default: I
     create-character: Create character
     new-world: New world name
     choose-world: Choose a world
@@ -352,7 +356,7 @@ pages:
     digest: 'Candidate digest: {digest}'
     approve: Approve and register persona
     model-binding: Conversation model binding
-    model-note: Bind the current provider and model to an external profile. Provider API keys stay in AIRI.
+    model-note: Bind the current provider and model to an external profile. API key storage is configured separately.
     active-model: 'Current AIRI model: {provider} / {model}'
     binding-version: 'Binding revision {binding} · profile {profile} · profile revision {revision}'
     unknown: Unknown
@@ -373,6 +377,16 @@ pages:
       launch-confirm-message: Allow AIRI to run this local service automatically? Check the executable and directories below.
       launch-confirm-cancel: Cancel
       launch-confirm-allow: Register service
+      key-title: Consolidation API key
+      key-description: Save the current AIRI model API key with OS protection. Save service paths first. The registered service receives METRODOROS_LLM_API_KEY on its next start. Existing services need a restart. Deleting this copy does not revoke the provider key or change a running service.
+      key-provider-required: Select a configured Chat Completions provider and model with an API key and base URL in AIRI.
+      key-status: 'Saved consolidation key: {saved}'
+      key-save: Encrypt and save the current AIRI model key
+      key-forget: Delete the saved consolidation key
+      key-target-changed: Service paths or endpoint changed. Save the key again for this target before automatic startup.
+      key-confirm-title: Save AIRI API key for memory consolidation
+      key-confirm-message: Save this model API key with OS protection and pass it only to the registered local service at startup? The key itself is not shown.
+      key-confirm-save: Save key
       remember-token: Encrypt and remember the connection token on this PC
       auto-connect: Connect automatically with the remembered token
       credential-status: 'OS storage: {available} · saved token: {saved}'
