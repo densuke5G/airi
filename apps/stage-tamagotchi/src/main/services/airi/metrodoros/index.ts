@@ -336,8 +336,10 @@ export async function setupMetrodorosService(options: { lifecycle: Lifecycle, ip
           cancelId: 0,
           noLink: true,
         })
-        if (confirmation.response !== 1 || window.isDestroyed())
+        if (window.isDestroyed())
           throw new Error('memory.registration_cancelled')
+        if (confirmation.response !== 1)
+          return await getDesktopSettingsSnapshot()
       }
       const forgotCredential = await forgetWhenRememberingDisabled(previous.rememberToken, next.rememberToken, async () => await credentialStore.forget())
       desktopSettings = next
