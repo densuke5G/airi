@@ -6,7 +6,10 @@ import { BasicButton, FieldCheckbox, FieldInput, FieldSelect } from '@proj-airi/
 import { computed, onMounted, ref, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import DesktopMemorySettingsPanel from './desktop-memory-settings-panel.vue'
+
 import { connectMemoryToken } from '../../../../services/memory/connection'
+import { desktopMemorySettingsFacade } from '../../../../services/memory/desktop-settings'
 import { useChatSessionStore } from '../../../../stores/chat/session-store'
 import { useAiriCardStore } from '../../../../stores/modules/airi-card'
 import { useConsciousnessStore } from '../../../../stores/modules/consciousness'
@@ -15,6 +18,7 @@ import { useMemoryStore } from '../../../../stores/modules/memory'
 const props = defineProps<{ mode: 'short-term' | 'long-term' }>()
 const { t, te } = useI18n()
 const memory = useMemoryStore()
+const desktopFacade = desktopMemorySettingsFacade
 const cards = useAiriCardStore()
 const consciousness = useConsciousnessStore()
 const sessions = useChatSessionStore()
@@ -222,6 +226,8 @@ async function bindModel() {
         </p>
       </div>
     </section>
+
+    <DesktopMemorySettingsPanel v-if="desktopFacade" :facade="desktopFacade" />
 
     <template v-if="props.mode === 'short-term'">
       <section :class="['rounded-xl bg-neutral-50 p-4', 'dark:bg-black/30']">

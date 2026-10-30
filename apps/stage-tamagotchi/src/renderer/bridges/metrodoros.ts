@@ -1,10 +1,12 @@
 import type { createContext } from '@moeru/eventa/adapters/electron/renderer'
 import type { MemorySpeechInput, MemoryStopRequest } from '@proj-airi/stage-ui/services/memory/contracts'
+import type { DesktopMemorySettingsFacade } from '@proj-airi/stage-ui/services/memory/desktop-settings'
 
 import { defineInvoke, defineInvokeHandler } from '@moeru/eventa'
 import { installMemoryConnection, MemoryConnectionClient } from '@proj-airi/stage-ui/services/memory/connection'
+import { registerDesktopMemorySettings } from '@proj-airi/stage-ui/services/memory/desktop-settings'
 
-import { memoryCancel, memoryCommand, memoryDisplayed, memoryGate, memoryPrepare, memoryRegisterHost, memoryReport, memorySnapshotChanged, memorySpeechInput, memoryStop, memoryUnregisterHost } from '../../shared/eventa/metrodoros'
+import { desktopMemorySettingsCommand, desktopMemorySettingsSnapshotChanged, memoryCancel, memoryCommand, memoryDisplayed, memoryGate, memoryPrepare, memoryRegisterHost, memoryReport, memorySnapshotChanged, memorySpeechInput, memoryStop, memoryUnregisterHost } from '../../shared/eventa/metrodoros'
 
 /** One renderer client uses the existing preload Eventa transport. Tokens stay out of Pinia. */
 export function initializeMemoryConnection(context: ReturnType<typeof createContext>['context']): () => void {
@@ -40,9 +42,21 @@ export function initializeMemoryConnection(context: ReturnType<typeof createCont
     },
   })
   const uninstall = installMemoryConnection(client)
+  const desktopFacade: DesktopMemorySettingsFacade = {
+    snapshot: () => defineInvoke(context, desktopMemorySettingsCommand)({ kind: 'snapshot' }),
+    configure: update => defineInvoke(context, desktopMemorySettingsCommand)({ kind: 'configure', update }),
+    retry: () => defineInvoke(context, desktopMemorySettingsCommand)({ kind: 'retry' }),
+    forget: () => defineInvoke(context, desktopMemorySettingsCommand)({ kind: 'forget' }),
+    subscribe: listener => context.on(desktopMemorySettingsSnapshotChanged, (event) => {
+      if (event.body)
+        listener(event.body)
+    }),
+  }
+  const unregisterDesktopFacade = registerDesktopMemorySettings(desktopFacade)
   return () => {
     client.dispose()
     uninstall()
+    unregisterDesktopFacade()
     handlers.clear()
     speechInput = undefined
   }

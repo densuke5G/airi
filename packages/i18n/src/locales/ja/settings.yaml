@@ -283,6 +283,30 @@ pages:
     management-unavailable: 記憶の編集、忘却、インポート、エクスポートの管理機能はここでは利用できません。
     entry-description: 短期記憶または長期記憶の設定ページを選択してください。
     error: 記憶の操作に失敗しました。接続を確認して再試行してください。
+    desktop:
+      title: デスクトップのサービス設定
+      description: この設定はこのデスクトップ環境だけに適用されます。両方の記憶ホストの準備後にMetrodorosを起動または接続します。
+      auto-start: AIRIの起動時にMetrodorosを起動
+      launch-confirm-title: 記憶サービスの自動起動を登録
+      launch-confirm-message: このローカルサービスをAIRIから自動起動しますか？実行ファイルとディレクトリを確認してください。
+      launch-confirm-cancel: キャンセル
+      launch-confirm-allow: サービスを登録
+      remember-token: 接続トークンを暗号化してこのPCに保存
+      auto-connect: 保存したトークンで自動接続
+      credential-status: 'OSの保存機能: {available} · 保存済みトークン: {saved}'
+      available: 利用可能
+      unavailable: 利用不可
+      saved: 保存済み
+      not-saved: 未保存
+      registration-required: 保存済みの接続情報が変わりました。新しいトークンで再接続してください。
+      fresh-token-required: 自動接続用に保存するには、新しいトークンで再接続してください。
+      node-path: Node.js 実行ファイルのパス
+      server-root: Metrodoros サーバーのディレクトリ
+      data-directory: Metrodoros データディレクトリ
+      save-paths: サービスのパスを保存
+      retry: 自動接続を再試行
+      forget: 保存したトークンを削除
+      error: デスクトップ設定を確認してください。パスと接続先を確認してください。
   account:
     title: アカウント
     description: プロフィールの閲覧とアカウントの管理

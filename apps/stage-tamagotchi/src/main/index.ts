@@ -231,7 +231,7 @@ app.whenReady().then(async () => {
   })
 
   const metrodoros = injeca.provide('modules:metrodoros', {
-    dependsOn: { lifecycle },
+    dependsOn: { lifecycle, i18n },
     build: ({ dependsOn }) => setupMetrodorosService({ ...dependsOn, ipcMain }),
   })
 

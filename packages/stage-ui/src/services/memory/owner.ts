@@ -3,6 +3,7 @@ import type { JobListResponse } from '@metrodoros/contracts'
 import type { Conversation } from '@proj-airi/core-agent'
 
 import type { MemoryCommand, MemoryDeliveryReport, MemoryPrepared, MemoryPrepareInput, MemoryProfile, MemorySnapshot, MemorySpeechInput, MemoryStopRequest } from './contracts'
+import type { DesktopCredentialIdentity, DesktopStoredCredential } from './owner-desktop-credentials'
 
 import { createMetrodorosApi, failureCode, hash53, MemoryBridge, parseSettings, PersonaMigration, TokenHolder } from '@metrodoros/airi-adapter'
 import { MetrodorosClient, ShortTermClient } from '@metrodoros/client'
@@ -35,6 +36,7 @@ export interface MemoryOwnerOptions {
   loadPrivateSessions: () => Promise<string[]>
   rememberPrivateSession: (sessionId: string) => Promise<void>
   storage: (namespace: string) => Promise<StoragePort>
+  onManualConnection?: (credential: DesktopStoredCredential) => Promise<void>
   fetch?: typeof globalThis.fetch
 }
 
@@ -60,6 +62,9 @@ export class MemoryOwner {
   private readonly pendingDisplays = new Set<string>()
   private tasks: AbortController | undefined
   private commandTail: Promise<unknown> = Promise.resolve()
+  private expectedIdentity: DesktopCredentialIdentity | null = null
+  private manualCredentialPending = false
+  private connectionCurrent: (() => boolean) | undefined
   private readonly migration: PersonaMigration
   private readonly initialized: Promise<void>
 
@@ -198,7 +203,10 @@ export class MemoryOwner {
     }
   }
 
-  async command(command: MemoryCommand): Promise<MemorySnapshot> {
+  async command(
+    command: MemoryCommand,
+    connectionContext?: { expectedIdentity?: DesktopCredentialIdentity, isCurrent?: () => boolean },
+  ): Promise<MemorySnapshot> {
     const run = this.commandTail.then(async () => {
       await this.initialized
       if (this.initializationFailed && command.kind !== 'snapshot')
@@ -209,6 +217,11 @@ export class MemoryOwner {
           const profile = this.checkedProfile(command.profile)
           const changedEndpoint = profile.endpoint !== this.snapshot.profile.endpoint
           await this.stopConnection(changedEndpoint)
+          if (changedEndpoint) {
+            this.expectedIdentity = null
+            this.connectionCurrent = undefined
+            this.manualCredentialPending = false
+          }
           this.snapshot.profile = profile
           await this.options.saveProfile(profile)
           if (this.token.present && profile.enabled)
@@ -219,11 +232,16 @@ export class MemoryOwner {
           await this.stopConnection(true)
           if (!command.token.trim())
             throw new Error('memory.token_required')
+          this.expectedIdentity = connectionContext?.expectedIdentity ?? null
+          this.connectionCurrent = connectionContext?.isCurrent
+          this.manualCredentialPending = connectionContext?.expectedIdentity === undefined
           this.token.set(command.token)
           await this.connect()
           break
         case 'disconnect':
           await this.stopConnection(true)
+          this.expectedIdentity = null
+          this.manualCredentialPending = false
           break
         case 'refresh':
           if (this.bridge && this.snapshot.connected) {
@@ -296,6 +314,8 @@ export class MemoryOwner {
     })
     this.commandTail = run.catch(() => undefined)
     return run.catch(async (error: unknown) => {
+      if (command.kind === 'connect' && !this.snapshot.connected)
+        this.manualCredentialPending = false
       const ownReason = error instanceof Error && /^memory\.[a-z_]{1,64}$/.test(error.message)
         ? error.message.slice('memory.'.length)
         : failureCode(error).toLowerCase()
@@ -396,13 +416,25 @@ export class MemoryOwner {
     const selectionGeneration = this.selectionGeneration
     const conversationActor = this.conversationHost.actor
     const speechActor = this.speechHost.actor
-    const selectionCurrent = () => this.generation === ownerGeneration && this.selectionGeneration === selectionGeneration && this.conversationHost?.actor === conversationActor && this.speechHost?.actor === speechActor
+    const selectionCurrent = () => this.generation === ownerGeneration && this.selectionGeneration === selectionGeneration && this.conversationHost?.actor === conversationActor && this.speechHost?.actor === speechActor && (this.connectionCurrent?.() ?? true)
     const api = createMetrodorosApi({ endpoint: this.snapshot.profile.endpoint, token: this.token.reveal(), ...(this.options.fetch ? { fetch: this.options.fetch } : {}) })
     const client = new MetrodorosClient({ baseUrl: this.snapshot.profile.endpoint, token: this.token.reveal(), ...(this.options.fetch ? { fetch: this.options.fetch } : {}) })
     const identity = await new ShortTermClient(client).getConnection({ budgetMs: 1000 })
+    if (this.connectionCurrent && !this.connectionCurrent())
+      throw new Error('memory.owner_lost')
+    if (this.expectedIdentity && (
+      this.expectedIdentity.endpoint !== this.snapshot.profile.endpoint
+      || this.expectedIdentity.userId !== identity.user_id
+      || this.expectedIdentity.clientId !== identity.client_id
+      || this.expectedIdentity.storeGeneration !== identity.store_generation
+    )) {
+      throw new Error('memory.saved_identity_mismatch')
+    }
     const capabilities = await api.getCapabilities?.({ budgetMs: 1000 })
     if (!capabilities?.conversation_profile || !capabilities.output_gate || !capabilities.change_notifications)
       throw new Error('memory.capability_missing')
+    if (!selectionCurrent())
+      throw new Error('memory.owner_lost')
     const namespace = hash53(JSON.stringify([this.options.installationId, this.snapshot.profile.endpoint, identity.user_id, identity.client_id, identity.store_generation]))
     const storage = await this.options.storage(namespace)
     if (!selectionCurrent())
@@ -466,12 +498,24 @@ export class MemoryOwner {
     if (!bridge.synchronized)
       throw new Error('memory.sync_required')
     this.snapshot.connected = true
+    this.snapshot.reason = null
     this.snapshot.lastSync = Date.now()
     this.tasks = new AbortController()
     const signal = this.tasks.signal
     void this.notificationLoop(bridge, signal)
     void this.outboxLoop(bridge, signal)
     await this.loadMetadata()
+    if (this.manualCredentialPending && this.options.onManualConnection) {
+      this.manualCredentialPending = false
+      await this.options.onManualConnection({
+        installationId: this.options.installationId,
+        endpoint: this.snapshot.profile.endpoint,
+        userId: identity.user_id,
+        clientId: identity.client_id,
+        storeGeneration: identity.store_generation,
+        token: this.token.reveal(),
+      }).catch(() => undefined)
+    }
   }
 
   private appInstructionIds = new Set<string>()
