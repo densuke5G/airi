@@ -71,7 +71,7 @@ Only Chat Completions providers with a configured API key and safe base URL are 
 Paths must be saved first. Service target changes require saving the key again.
 The saved source remains explicit when AIRI provider settings change. It does not refresh the copy silently.
 
-Main decrypts the record only for an authorized new service spawn.
+Only an authorized new service spawn receives the decrypted key.
 The child receives the key and provider base URL in fixed environment slots. AIRI's environment and command arguments remain unchanged.
 Metrodoros rejects a mismatched provider destination before resolving the key.
 An existing ready service is reused without changing its environment. Key replacement and deletion take effect after service restart.
