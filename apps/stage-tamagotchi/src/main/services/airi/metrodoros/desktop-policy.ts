@@ -31,6 +31,7 @@ export function requiresRegistrationAfterAutomaticFailure(code: string): boolean
   const normalized = code.toLowerCase()
   return normalized.includes('unauthorized')
     || normalized.includes('unauthenticated')
+    || normalized.includes('forbidden')
     || normalized.includes('token_invalid')
     || normalized.includes('saved_identity_mismatch')
     || normalized.includes('store_changed')

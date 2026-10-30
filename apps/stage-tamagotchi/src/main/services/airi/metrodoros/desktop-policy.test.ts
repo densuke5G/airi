@@ -11,6 +11,7 @@ describe('desktop memory registration policy', () => {
 
   it('requires registration after actual authentication or saved identity rejection', () => {
     expect(requiresRegistrationAfterAutomaticFailure('memory.unauthenticated')).toBe(true)
+    expect(requiresRegistrationAfterAutomaticFailure('memory.forbidden')).toBe(true)
     expect(requiresRegistrationAfterAutomaticFailure('memory.saved_identity_mismatch')).toBe(true)
     expect(requiresRegistrationAfterAutomaticFailure('memory.unavailable')).toBe(false)
   })
