@@ -230,11 +230,6 @@ app.whenReady().then(async () => {
     build: ({ dependsOn }) => setupAppleVisionService(dependsOn),
   })
 
-  const metrodoros = injeca.provide('modules:metrodoros', {
-    dependsOn: { lifecycle },
-    build: ({ dependsOn }) => setupMetrodorosService({ ...dependsOn, ipcMain }),
-  })
-
   const mcpStdioManager = injeca.provide('modules:mcp-stdio-manager', {
     build: async () => setupMcpStdioManager(),
   })
@@ -311,6 +306,11 @@ app.whenReady().then(async () => {
       // Removal condition: Settings no longer depends on Spotlight.
       openSettingsWindow: async (route) => { await settingsWindowManager?.openWindow(route) },
     }),
+  })
+
+  const metrodoros = injeca.provide('modules:metrodoros', {
+    dependsOn: { lifecycle, i18n, chatWindow },
+    build: ({ dependsOn }) => setupMetrodorosService({ ...dependsOn, ipcMain, startConversation: dependsOn.chatWindow.startMemoryConversation }),
   })
 
   const spotlightWindow = injeca.provide('windows:spotlight', {

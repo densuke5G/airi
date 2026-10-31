@@ -23,6 +23,7 @@ import {
 } from '../../shared/eventa'
 import { useChatDraftHandover } from '../composables/use-chat-draft-handover'
 import { dismissOverlays, useChatFloatingClickThrough } from '../composables/use-chat-floating-click-through'
+import { useMemoryConversationControl } from '../composables/use-memory-conversation-control'
 import { useControlsIslandStore } from '../stores/controls-island'
 
 const { activeCard } = storeToRefs(useAiriCardStore())
@@ -51,6 +52,7 @@ onMounted(async () => {
 })
 
 useChatDraftHandover(interactiveArea)
+useMemoryConversationControl()
 
 // `free` and `danmaku` both stay where the user drags them.
 const freePlacement = computed(() => state.value.placement !== 'attached')

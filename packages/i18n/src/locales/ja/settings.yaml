@@ -204,6 +204,7 @@ pages:
     status-label: 接続状態
     connection-error: 記憶の接続を確認できません。接続先を確認して再試行してください。
     reasons:
+      no_character: サーバーには接続済みです。長期記憶のカード紐付けを確認し、メイン画面で会話を開始してください。
       model_binding_invalid: プロフィールのUUIDと正の整数のリビジョンを入力するか、3項目をすべて空にしてください。
       sqlite_unavailable: 'ローカル記憶ストレージを開始できません。デスクトップ環境を確認して再接続してください。'
       saved_settings_invalid: '保存済みの記憶設定を読み込めません。ローカル設定を修復してから接続してください。'
@@ -226,6 +227,7 @@ pages:
       connecting: 接続中
       syncing: 同期中
       ready: 接続済み
+      selection-required: 接続済み・会話のキャラクター選択待ち
       degraded: 一部の機能を利用できない状態で接続済み
       blocked: 接続がブロックされています
       token-required: 接続するにはトークンを再入力してください
@@ -259,6 +261,8 @@ pages:
     character: Metrodoros キャラクター
     choose-character: 既存のキャラクターを選択
     new-character: 新しいキャラクター名
+    first-person: 一人称（1〜20文字）
+    first-person-default: 私
     create-character: キャラクターを作成
     new-world: 新しいワールド名
     choose-world: ワールドを選択
@@ -270,7 +274,7 @@ pages:
     digest: '候補ダイジェスト: {digest}'
     approve: 人格を承認して登録
     model-binding: 会話モデルの紐付け
-    model-note: 現在のプロバイダーとモデルを外部プロフィールへ紐付けます。プロバイダーのAPIキーはAIRIに保持します。
+    model-note: 現在のプロバイダーとモデルを外部プロフィールへ紐付けます。APIキーの保存は別に設定します。
     active-model: '現在のAIRIモデル: {provider} / {model}'
     binding-version: '紐付けリビジョン {binding} · プロフィール {profile} · プロフィールリビジョン {revision}'
     unknown: 不明
@@ -283,6 +287,40 @@ pages:
     management-unavailable: 記憶の編集、忘却、インポート、エクスポートの管理機能はここでは利用できません。
     entry-description: 短期記憶または長期記憶の設定ページを選択してください。
     error: 記憶の操作に失敗しました。接続を確認して再試行してください。
+    desktop:
+      title: デスクトップのサービス設定
+      description: この設定はこのデスクトップ環境だけに適用されます。両方の記憶ホストの準備後にMetrodorosを起動または接続します。
+      auto-start: AIRIの起動時にMetrodorosを起動
+      launch-confirm-title: 記憶サービスの自動起動を登録
+      launch-confirm-message: このローカルサービスをAIRIから自動起動しますか？実行ファイルとディレクトリを確認してください。
+      launch-confirm-cancel: キャンセル
+      launch-confirm-allow: サービスを登録
+      key-title: 整理用APIキー
+      key-description: 現在のAIRIモデルのAPIキーをOS保護で保存します。先にサービスのパスを保存してください。次回のサービス起動時にMETRODOROS_LLM_API_KEYとして渡します。起動済みサービスは再起動が必要です。保存解除はプロバイダー側のキー失効や稼働中サービスへの変更ではありません。
+      key-provider-required: AIRIでAPIキーとBase URLを設定したChat Completions対応のプロバイダーとモデルを選択してください。
+      key-status: '整理用APIキー: {saved}'
+      key-save: 現在のAIRIモデルのAPIキーを暗号化して保存
+      key-forget: 保存した整理用APIキーを削除
+      key-target-changed: サービスのパスまたは接続先が変わりました。自動起動前に、この起動先についてAPIキーを保存し直してください。
+      key-confirm-title: AIRIのAPIキーを記憶整理用に保存
+      key-confirm-message: このモデルのAPIキーをOS保護で保存し、起動時に登録済みのローカルサービスだけへ渡しますか？キー自体は表示しません。
+      key-confirm-save: キーを保存
+      remember-token: 接続トークンを暗号化してこのPCに保存
+      auto-connect: 保存したトークンで自動接続
+      credential-status: 'OSの保存機能: {available} · 保存済みトークン: {saved}'
+      available: 利用可能
+      unavailable: 利用不可
+      saved: 保存済み
+      not-saved: 未保存
+      registration-required: 保存済みの接続情報が変わりました。新しいトークンで再接続してください。
+      fresh-token-required: 自動接続用に保存するには、新しいトークンで再接続してください。
+      node-path: Node.js 実行ファイルのパス
+      server-root: Metrodoros サーバーのディレクトリ
+      data-directory: Metrodoros データディレクトリ
+      save-paths: サービスのパスを保存
+      retry: 自動接続を再試行
+      forget: 保存したトークンを削除
+      error: デスクトップ設定を確認してください。パスと接続先を確認してください。
   account:
     title: アカウント
     description: プロフィールの閲覧とアカウントの管理

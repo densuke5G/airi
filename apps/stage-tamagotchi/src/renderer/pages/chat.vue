@@ -11,12 +11,14 @@ import WindowTitleBar from '../components/Window/TitleBar.vue'
 import ChatPageShell from './chat-page-shell.vue'
 
 import { useChatDraftHandover } from '../composables/use-chat-draft-handover'
+import { useMemoryConversationControl } from '../composables/use-memory-conversation-control'
 
 const { activeCard } = storeToRefs(useAiriCardStore())
 const sessionsDrawerOpen = shallowRef(false)
 const interactiveArea = useTemplateRef<InstanceType<typeof InteractiveArea>>('interactive-area')
 
 useChatDraftHandover(interactiveArea)
+useMemoryConversationControl()
 </script>
 
 <template>

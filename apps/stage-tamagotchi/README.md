@@ -8,6 +8,30 @@ Shared character behavior belongs in `packages/stage-ui`. Use `stage-web` for br
 From the repository root, run `pnpm install`, then `pnpm dev:tamagotchi`.
 Run `pnpm -F @proj-airi/stage-tamagotchi build` to build the app.
 
+On this Windows checkout, `./scripts/start-local-airi.ps1` builds the current translations and app before it starts AIRI.
+If that build fails, the script stops before it starts the previous app.
+To reuse an existing build, pass `-SkipBuild`.
+
+## Metrodoros memory service
+
+Memory settings are under **Settings → Modules → Short-Term Memory / Long-Term Memory**.
+The desktop panel supports opt-in service startup, encrypted connection tokens, and automatic connection.
+All options start disabled. Register absolute Node, server, and data paths before enabling startup.
+
+To reuse a configured AIRI provider key for consolidation, select that Chat Completions provider and model first.
+Save the service paths, then use **Encrypt and save the current AIRI model key**. Confirm the source and target in the native dialog.
+The OS-encrypted copy is separate from the connection token. Neither secret is returned through status.
+The next service process receives `METRODOROS_LLM_API_KEY`. Its LLM profile must use that reference and the same provider base URL.
+The API key copy does not configure the server model or its bindings. Use the companion server README for those steps.
+Restart an already running service after saving, replacing, or deleting this key. AIRI does not force that restart.
+
+In Long-Term Memory, enter a name and a first-person pronoun with 1–20 characters to create a character.
+Choose the character and world, then press **Bind AIRI Card and world**. Background refreshes retain unsaved choices.
+Changing the active AIRI Card loads that card's saved mapping. A failed bind retains your choices.
+An authenticated connection can wait for character selection. Check the mapping, then start a conversation in the main window.
+
+See [desktop boundary contract](../../docs/ai/metrodoros/10-desktop-contract.md) and [acceptance evidence](../../docs/ai/metrodoros/10-acceptance.md).
+
 ## Computer use
 
 The desktop chat composer starts with **Use computer** on. Turn it off to send a request without desktop access.

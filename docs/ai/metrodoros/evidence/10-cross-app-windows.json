@@ -1,0 +1,65 @@
+{
+  "date": "2026-10-31",
+  "platform": "Windows",
+  "node": "24.19.0",
+  "electron": "43.4.1",
+  "schema": 8,
+  "synthetic_only": true,
+  "airi_source_parent": "a7d231ea60fc778a5dc48c2734a3df8c0981dbdd",
+  "metrodoros_source": "de1501d640927c0e1eb02a83c274d25bce992b1e",
+  "source_sha256_lf": {
+    "apps/stage-tamagotchi/src/main/index.ts": "7fa27f2fb95b60e720122cf3ef7b790702ec38d61a8c9bc7e1c48454bbb1ae01",
+    "apps/stage-tamagotchi/src/main/services/airi/metrodoros/index.ts": "32a1f00b7a4ebf251bdc561e68986e6c7e1b36e6042407fd10b0634afc33714f",
+    "apps/stage-tamagotchi/src/main/windows/chat/index.ts": "be3ede22ba4719574f78444b919e4da8003b98b6bc3be596799af475bc73a066",
+    "apps/stage-tamagotchi/src/renderer/bridges/metrodoros.ts": "aeca19d4c55867d660945d1cb310593060a16e8ed5d8d0ed96560467182cbd06",
+    "apps/stage-tamagotchi/src/renderer/pages/chat-floating.vue": "4a79dd60f8b6fd4538bcf5fc01c080e20f66c6dabec566a1c39964e163c0845c",
+    "apps/stage-tamagotchi/src/renderer/pages/chat.vue": "06bfea779f78373e31b0f9c8aba7aafc396a3ffa1f34c1ef428c74d56f8ea068",
+    "apps/stage-tamagotchi/src/shared/eventa/metrodoros.ts": "092e9a7fdb8078127c5b3117641e2c89c85ba59358246e5cf4826e7d2d066f93",
+    "packages/scenarios-stage-tamagotchi-electron/src/runtime/selectors.ts": "a2e49e5320289648e8f3e5a287df64b046a3d195ce7e3c21156e085bc7b68f3d",
+    "packages/scenarios-stage-tamagotchi-electron/src/runtime/windows.ts": "1460b20906c0b1df5508ab291a0fd61fd394dbf2b52365fe4758db31372780cd",
+    "packages/stage-ui/src/components/scenarios/settings/memory/memory-settings-panel.vue": "329e997ec7d896a769ef1562d2879b25ea223a6c2c17075659d4375022692ba2",
+    "packages/stage-ui/src/services/memory/desktop-settings.ts": "c14d4ef87d9c144035693e98e6c417c03530c84fd7fb73304cc67f0de4f97e80",
+    "scripts/start-local-airi.ps1": "b860ce4b06b91a54aef306ebf5619b527b6ce3924298951364a0479f7e32ccb3",
+    "apps/stage-tamagotchi/src/main/services/airi/metrodoros/desktop-host-handover.test.ts": "590f4dda2365c3ecfac996e535d49d662eaae653499668d1984db170c6450f16",
+    "apps/stage-tamagotchi/src/renderer/composables/use-memory-conversation-control.ts": "0f7c24659d5000f420029da797987965c98f8c1a36790c6fc3ade877daed22df",
+    "apps/stage-tamagotchi/src/renderer/composables/use-memory-conversation-control.browser.test.ts": "b3916ed5318a4e479d9d2ccb5956362a446575f660d4612427ff7ef592be64bc"
+  },
+  "selection_and_persistence": {
+    "authenticated_in_real_renderer": true,
+    "character_choice_survives_refresh": true,
+    "world_choice_survives_refresh": true,
+    "local_card_mapping_persisted": true,
+    "mapping_survives_settings_reload": true
+  },
+  "real_and_fiction_chat": {
+    "model_binding_saved": true,
+    "settings_opens_chat_with_fresh_session": true,
+    "cross10-fiction-world_reply_visible": true,
+    "cross10-real-world_reply_visible": true
+  },
+  "desktop_registration": {
+    "token_saved_by_real_ui": true,
+    "key_saved_by_real_ui": true,
+    "automatic_flags_saved": true
+  },
+  "restart_and_memory": {
+    "automatic_connection_without_token_entry": true,
+    "expected_client_visible": true,
+    "separate_encrypted_records": true,
+    "encrypted_records_hide_secrets": true,
+    "chat_reply_after_automatic_start": true,
+    "prior_memory_in_quoted_context": true,
+    "consolidation_authenticated_from_child": true
+  },
+  "service_unreachable_before_cold_start": true,
+  "startup_handover_regression": {
+    "before": "1 failed, 1 passed",
+    "after": "2 passed"
+  },
+  "limits": [
+    "Synthetic fixed-response Chat Completions provider. No live model quality or voice acceptance.",
+    "Fiction-world membership and server LLM profiles were registered through existing public APIs.",
+    "Backup, restore, forgetting, and key deletion use the prior phase-10 evidence. This GUI run does not repeat them.",
+    "The normal user profile and service on port 47831 were not changed."
+  ]
+}
