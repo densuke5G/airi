@@ -109,7 +109,7 @@ async function saveDesktopSettings(path: string, settings: DesktopSettings): Pro
  * setupMetrodorosService -> MemoryOwner -> FileStorage / authenticated HTTP.
  * Per-window Eventa contexts reject cross-window spoofing and close with their window.
  */
-export async function setupMetrodorosService(options: { lifecycle: Lifecycle, ipcMain: IpcMain, i18n: I18n }) {
+export async function setupMetrodorosService(options: { lifecycle: Lifecycle, ipcMain: IpcMain, i18n: I18n, startConversation: (cardId: string) => Promise<void> }) {
   const directory = join(app.getPath('userData'), 'metrodoros')
   await mkdir(directory, { recursive: true })
   const profilePath = join(directory, 'settings.json')
@@ -244,8 +244,6 @@ export async function setupMetrodorosService(options: { lifecycle: Lifecycle, ip
       memoryEndpoint = memorySnapshot.profile.endpoint
 
       const autoStart = desktopSettings.autoStart && !startupLaunchAttempted
-      if (autoStart)
-        startupLaunchAttempted = true
       await runDesktopStartup({
         profileEnabled: memorySnapshot.profile.enabled,
         autoStart,
@@ -253,7 +251,16 @@ export async function setupMetrodorosService(options: { lifecycle: Lifecycle, ip
         rememberToken: desktopSettings.rememberToken,
         needsRegistration: desktopSettings.needsRegistration,
       }, {
-        startServer: async () => { await launcher.ensureReady(launchProfile(true), controller.signal) },
+        startServer: async () => {
+          try {
+            await launcher.ensureReady(launchProfile(true), controller.signal)
+          }
+          finally {
+            // Host handover can cancel startup before spawn. The next host must retain its launch attempt.
+            if (generation === desktopGeneration && !controller.signal.aborted)
+              startupLaunchAttempted = true
+          }
+        },
         loadCredential: async () => await credentialStore.load(memorySnapshot.profile.endpoint),
         connect: async (stored, expectedIdentity, isCurrent) => {
           if (generation !== desktopGeneration || controller.signal.aborted)
@@ -368,6 +375,13 @@ export async function setupMetrodorosService(options: { lifecycle: Lifecycle, ip
       await getDesktopSettingsSnapshot()
       publishDesktopSettings()
       void maybeConnectAutomatically()
+      return await getDesktopSettingsSnapshot()
+    }
+    if (command.kind === 'start-conversation') {
+      const parsed = v.safeParse(v.strictObject({ kind: v.literal('start-conversation'), cardId: v.pipe(v.string(), v.minLength(1), v.maxLength(256)) }), command)
+      if (!parsed.success)
+        throw new Error('memory.desktop_command_invalid')
+      await options.startConversation(parsed.output.cardId)
       return await getDesktopSettingsSnapshot()
     }
     if (command.kind === 'save-consolidation-key') {

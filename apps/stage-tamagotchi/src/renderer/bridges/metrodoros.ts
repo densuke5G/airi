@@ -49,6 +49,7 @@ export function initializeMemoryConnection(context: ReturnType<typeof createCont
     forget: () => defineInvoke(context, desktopMemorySettingsCommand)({ kind: 'forget' }),
     saveConsolidationKey: credential => defineInvoke(context, desktopMemorySettingsCommand)({ kind: 'save-consolidation-key', credential }),
     forgetConsolidationKey: () => defineInvoke(context, desktopMemorySettingsCommand)({ kind: 'forget-consolidation-key' }),
+    startConversation: async (cardId) => { await defineInvoke(context, desktopMemorySettingsCommand)({ kind: 'start-conversation', cardId }) },
     subscribe: listener => context.on(desktopMemorySettingsSnapshotChanged, (event) => {
       if (event.body)
         listener(event.body)

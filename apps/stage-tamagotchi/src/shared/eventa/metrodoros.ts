@@ -17,3 +17,11 @@ export const memorySnapshotChanged = defineEventa<MemorySnapshot>('eventa:memory
 export const memorySpeechInput = defineInvokeEventa<boolean, MemorySpeechInput>('eventa:memory:host:speech-input')
 export const desktopMemorySettingsCommand = defineInvokeEventa<DesktopMemorySettingsSnapshot, DesktopMemorySettingsCommand>('eventa:memory:desktop-settings:command')
 export const desktopMemorySettingsSnapshotChanged = defineEventa<DesktopMemorySettingsSnapshot>('eventa:memory:desktop-settings:snapshot-changed')
+
+/** Only the selected chat window creates and activates its new local conversation. */
+export interface MemoryConversationStart {
+  cardId: string
+  deadlineAt: number
+}
+export const memoryStartConversation = defineInvokeEventa<void, MemoryConversationStart>('eventa:memory:conversation:start')
+export const memoryConversationReady = defineInvokeEventa<void>('eventa:memory:conversation:ready')

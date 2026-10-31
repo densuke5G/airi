@@ -47,6 +47,7 @@ export type DesktopMemorySettingsCommand
     | { kind: 'forget' }
     | { kind: 'save-consolidation-key', credential: DesktopConsolidationKey }
     | { kind: 'forget-consolidation-key' }
+    | { kind: 'start-conversation', cardId: string }
 
 /** No secret is returned. Saving forwards an already configured provider key to main once. */
 export interface DesktopMemorySettingsFacade {
@@ -56,6 +57,7 @@ export interface DesktopMemorySettingsFacade {
   forget: () => Promise<DesktopMemorySettingsSnapshot>
   saveConsolidationKey: (credential: DesktopConsolidationKey) => Promise<DesktopMemorySettingsSnapshot>
   forgetConsolidationKey: () => Promise<DesktopMemorySettingsSnapshot>
+  startConversation: (cardId: string) => Promise<void>
   subscribe: (listener: (snapshot: DesktopMemorySettingsSnapshot) => void) => () => void
 }
 

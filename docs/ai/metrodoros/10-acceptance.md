@@ -101,3 +101,40 @@ A real AIRI owner created a character through a temporary schema-8 HTTP server a
 The server still rejected an empty pronoun. Existing user data and the running service were not used.
 Report: [character setup](evidence/10-character-setup-windows.json).
 The focused shared UI/owner run passes 20 tests, including five new Chromium regression cases.
+
+## Cross-app setup and restart, 2026-10-31
+
+A real Electron renderer, Eventa IPC, MemoryOwner, schema-8 HTTP service, SQLite, and Windows safeStorage complete the setup flow.
+The dedicated profile uses a synthetic Chat Completions provider and generated credentials. The normal profile and port 47831 remain untouched.
+
+| Flow | Result |
+| --- | --- |
+| Character/world selection, explicit refresh, bind, settings reload | Passed with retained selections and persisted mapping |
+| Fiction-world and real-world chat | Passed through the actual chat window with a displayed provider response |
+| New conversation from Settings | Passed. The receiving chat creates and selects its local session |
+| Token and separate consolidation key registration | Passed through the settings UI and native confirmation |
+| Stopped service, AIRI restart, automatic connection | Passed without token entry or a parent key environment variable |
+| Consolidation and later recall | Passed. A user fact becomes active and reaches a new request inside quoted memory data |
+| Interrupted startup during host handover | Reproduced before repair. Two new main-process regression tests pass after repair |
+
+Settings previously created a session in another window, leaving the actual chat on its old session.
+Main now targets the selected chat window. That renderer confirms stop, creates a session, then activates it.
+Expired requests, failed stops, and changed cards retain the prior selection or reject the stale request.
+The request has a ten-second deadline. Floating and legacy chat pages register the same handler.
+
+An interrupted host previously consumed the one automatic launch attempt before spawn.
+Only a current, non-cancelled launch completion now consumes that attempt. Ordinary launch failures remain bounded.
+The Windows start script builds current translations and the desktop app. `-SkipBuild` explicitly reuses the existing build.
+
+Fiction-world membership and the server LLM profile/binding remain public-API setup steps.
+Selecting a world in AIRI does not replace its server membership list. A real world requires no fiction membership registration.
+Consolidation waits for conversation activity to become idle. Immediate session closure can cancel pending extraction.
+
+The synthetic response proves transport, delivery, storage, and recall. It does not measure model quality or TTS.
+The normal Windows start script was syntax-checked. Its build commands ran. Irodori and the normal profile were not launched.
+Backup, restore, forgetting, and deletion retain their prior evidence. This GUI run does not repeat those paths.
+
+Report: [Windows cross-app result](evidence/10-cross-app-windows.json).
+Focused checks: desktop 63, owner/connection 18, shared settings Chromium 13, chat Chromium 4, and scenario helpers 11 passed.
+Root typecheck completes 55 tasks. Desktop build and changed-file lint pass.
+Root lint still reports 795 errors in existing local runtime/tool artifacts, with 682 existing warnings.

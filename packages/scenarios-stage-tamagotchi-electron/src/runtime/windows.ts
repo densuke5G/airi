@@ -65,7 +65,7 @@ async function classifyWindow(page: Page): Promise<StageWindowSnapshot | null> {
     return null
   }
 
-  if (route === '/chat' || title === 'Chat') {
+  if (route === '/chat' || route === '/chat-floating' || title === 'Chat') {
     return { name: 'chat', page, title, route }
   }
 

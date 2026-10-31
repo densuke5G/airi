@@ -11,21 +11,20 @@ export async function waitForControlsIslandReady(page: Page): Promise<void> {
 }
 
 export async function expandControlsIsland(page: Page): Promise<void> {
-  await clickControlButtonByIcon(page, 'i-solar:alt-arrow-up-line-duotone')
+  const toggle = controlButtonsByIcon(page, 'i-solar:alt-arrow-up-line-duotone').first()
+  if (await toggle.getAttribute('aria-expanded') !== 'true')
+    await clickControlButtonByIcon(page, 'i-solar:alt-arrow-up-line-duotone')
+  await controlButtonsByIcon(page, 'i-solar:alt-arrow-up-line-duotone')
+    .and(page.locator('button[aria-expanded="true"]'))
+    .first()
+    .waitFor({ state: 'visible' })
 }
 
 export async function openSettingsFromControlsIsland(page: Page): Promise<void> {
   await waitForControlsIslandReady(page)
 
-  try {
-    await clickControlButtonByIcon(page, 'i-solar:settings-minimalistic-outline')
-  }
-  catch {
-    // NOTICE: The island can report ready while still collapsed on slower frames.
-    // Expand once and retry settings click to reduce flakiness during capture.
-    await expandControlsIsland(page).catch(() => {})
-    await clickControlButtonByIcon(page, 'i-solar:settings-minimalistic-outline')
-  }
+  await expandControlsIsland(page)
+  await clickControlButtonByIcon(page, 'i-solar:settings-minimalistic-outline')
 }
 
 export async function openChatFromControlsIsland(page: Page): Promise<void> {
@@ -50,17 +49,13 @@ function iconAttributeSelector(iconName: string): string {
 }
 
 function controlButtonsByIcon(page: Page, iconName: string) {
-  return page
-    .locator('button')
-    .filter({
-      has: page.locator(iconAttributeSelector(iconName)),
-    })
+  return page.locator(iconAttributeSelector(iconName)).locator('xpath=ancestor::button[1]')
 }
 
 async function clickControlButtonByIcon(page: Page, iconName: string): Promise<void> {
   const button = controlButtonsByIcon(page, iconName).first()
 
   await button.waitFor({ state: 'visible', timeout: controlsIslandReadyTimeoutMs })
-  await button.click({ force: true })
+  await button.click()
   await sleep(100)
 }

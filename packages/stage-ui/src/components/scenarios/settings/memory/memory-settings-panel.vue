@@ -153,11 +153,30 @@ async function createWorld() {
 }
 
 async function startNewConversation() {
+  if (desktopFacade.value) {
+    pending.value = true
+    error.value = null
+    try {
+      await desktopFacade.value.startConversation(cards.activeCardId)
+      await memory.refresh()
+    }
+    catch (cause) {
+      error.value = errorMessageFrom(cause) ?? 'memory.conversation_host_unavailable'
+    }
+    finally {
+      pending.value = false
+    }
+    return
+  }
   if (!sessions.activeSessionId)
     return
+  const cardId = cards.activeCardId
   const closed = await run({ kind: 'new-conversation', airiSessionId: sessions.activeSessionId })
-  if (closed && cards.activeCard)
-    await sessions.createSession(cards.activeCardId)
+  if (closed && cards.activeCard && cards.activeCardId === cardId) {
+    const sessionId = await sessions.createSession(cardId, { setActive: false })
+    if (cards.activeCardId === cardId)
+      await sessions.setActiveSession(sessionId)
+  }
 }
 
 async function bindCard() {
@@ -307,7 +326,7 @@ async function bindModel() {
         <p :class="['mb-3 text-sm text-neutral-500 dark:text-neutral-400']">
           {{ t('settings.pages.memory-panel.new-conversation-note') }}
         </p>
-        <BasicButton :disabled="busy || !sessions.activeSessionId" @click="startNewConversation">
+        <BasicButton :disabled="busy || !cards.activeCard || (!desktopFacade && !sessions.activeSessionId)" @click="startNewConversation">
           {{ t('settings.pages.memory-panel.new-conversation') }}
         </BasicButton>
       </section>

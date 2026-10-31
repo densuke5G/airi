@@ -8,6 +8,10 @@ Shared character behavior belongs in `packages/stage-ui`. Use `stage-web` for br
 From the repository root, run `pnpm install`, then `pnpm dev:tamagotchi`.
 Run `pnpm -F @proj-airi/stage-tamagotchi build` to build the app.
 
+On this Windows checkout, `./scripts/start-local-airi.ps1` builds the current translations and app before it starts AIRI.
+If that build fails, the script stops before it starts the previous app.
+To reuse an existing build, pass `-SkipBuild`.
+
 ## Metrodoros memory service
 
 Memory settings are under **Settings → Modules → Short-Term Memory / Long-Term Memory**.
