@@ -1,0 +1,112 @@
+{
+  "schema": "10-world-session-recovery/windows/v1",
+  "source_parent": "fd675ea2c6f03ec1b01daaae855c01a21d6fb3a2",
+  "environment": {
+    "platform": "Windows",
+    "node": "24.19.0",
+    "electron": "43.4.1",
+    "server_schema": 8
+  },
+  "isolation": {
+    "synthetic_data": true,
+    "normal_service_stopped": false,
+    "normal_secrets_read": false,
+    "normal_memory_bodies_read": false
+  },
+  "source_sha256": {
+    "packages/stage-ui/src/services/memory/owner.ts": "99fe079ab8165eb2ba3510f81d6e048d2f6f717ac5d55b7512770e68ef2d82c9",
+    "packages/stage-ui/src/services/memory/contracts.ts": "7f6bab1c73e19a02f8ed7ee9e618f9d21dc1be62bf21372d58b0b024008f305c",
+    "packages/stage-ui/src/services/memory/owner-session-retry-metrodoros.test.ts": "1087f1589283eaeba64151a677fbd58e3b6d4ad2e30ee673df31ce789ee08519",
+    "packages/stage-ui/src/components/scenarios/settings/memory/memory-settings-panel.vue": "736af1d8433fe57687385256630afc764b30891cb2a2406c6e5f28fae6d25537",
+    "packages/stage-ui/src/components/scenarios/settings/memory/memory-settings-connection.browser.test.ts": "7e10cad7090a46b7d4978a7b400d20760f3d579b2cae12a0fdf156b1242d4068",
+    "packages/i18n/src/locales/en/settings.yaml": "8762fb3ba11bd26ac81d04ff284a87f719ad3431d9d5f9769ecdf311d5536321",
+    "packages/i18n/src/locales/ja/settings.yaml": "c3519be8f1245a6c0d6a7bb7f26f89efb934eedbadef6c513a8687e6767baa73",
+    "apps/stage-tamagotchi/scripts/metrodoros-world-acceptance.mjs": "610c4be0c1f8adcbc06367cb5791b96ab0709e3e79f909f73df3139fe03e2284"
+  },
+  "regression": {
+    "unit_before_failed": 4,
+    "browser_before_failed": 2,
+    "related_after_passed": 49,
+    "desktop_after_passed": 63,
+    "private_history_guard_preserved": true,
+    "existing_assertions_removed": false,
+    "fixture_metadata_only_update": true
+  },
+  "real_service": {
+    "realHttp": true,
+    "realSqlite": true,
+    "realAiriOwner": true,
+    "syntheticData": true,
+    "checks": {
+      "unnamed_real_and_named_fiction_distinguished": true,
+      "fiction_without_membership_denied": true,
+      "failed_first_attempt_marked_private": true,
+      "retry_reports_actual_denial": true,
+      "real_world_opens_without_membership": true,
+      "same_conversation_recovers_after_world_change": true,
+      "private_history_cannot_fall_back": true
+    },
+    "passed": true
+  },
+  "unchanged_host_acceptance": {
+    "6": {
+      "passed": true,
+      "check_count": 25,
+      "gaps": []
+    },
+    "7": {
+      "passed": true,
+      "check_count": 25,
+      "gaps": []
+    },
+    "8": {
+      "passed": true,
+      "check_count": 25,
+      "gaps": []
+    }
+  },
+  "static": {
+    "root_typecheck": "55 of 55 passed",
+    "changed_eslint": "passed",
+    "desktop_build": "passed",
+    "i18n_build": "passed",
+    "root_lint": {
+      "passed": false,
+      "errors": 824,
+      "warnings": 682,
+      "error_scope": [
+        ".local-runtime",
+        ".local-tools"
+      ],
+      "ignore_rules_changed": false
+    }
+  },
+  "limits": [
+    "No live user voice or paid model calls were part of these synthetic tests.",
+    "CI account billing still prevents jobs from starting."
+  ],
+  "visual": {
+    "tool": "Vishot",
+    "inspected_images": 8,
+    "locales": [
+      "ja",
+      "en"
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "widths": [
+      1200,
+      420
+    ],
+    "baseline_source": "c19b3d90fab1b5988b45990b3a94456f532cf9eb",
+    "baseline_state": "Authenticated identity is visible, but this fixture remains blocked before metadata selection. Captures show this actual state.",
+    "after_states": [
+      "Fiction world named real world with membership guidance",
+      "Default real world with a friendly label",
+      "Short-term current-world label"
+    ],
+    "horizontal_overflow": false
+  }
+}

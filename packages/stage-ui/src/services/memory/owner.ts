@@ -337,7 +337,7 @@ export class MemoryOwner {
     const identity = this.requireIdentity()
     const [characters, worlds] = await Promise.all([identity.listCharacters({ state: 'active', limit: 100 }), identity.listWorlds({ limit: 100 })])
     this.snapshot.characters = characters.items.map(item => ({ id: item.character_id, name: item.display_name ?? item.character_id }))
-    this.snapshot.worlds = worlds.items.filter(item => item.state === 'active').map(item => ({ id: item.world_id, name: item.name ?? item.world_id }))
+    this.snapshot.worlds = worlds.items.filter(item => item.state === 'active').map(item => ({ id: item.world_id, name: item.name, realm: item.realm }))
     await this.loadConsolidationCount()
   }
 
@@ -620,6 +620,17 @@ export class MemoryOwner {
       throw new Error('memory.owner_lost')
     if (!Number.isFinite(deadlineAt) || deadlineAt <= Date.now() || deadlineAt > Date.now() + 1000)
       throw new Error('memory.deadline_exceeded')
+    const userTurns = input.conversation.turns.filter(turn => turn.type === 'user')
+    if (this.snapshot.profile.enabled && !this.usedSessions.has(input.sessionId) && userTurns.length === 1 && userTurns[0]?.id === input.userMessageId) {
+      // The runtime commits the user message before preparation. Persist privacy before any memory attempt, including a failed connection.
+      try {
+        await this.options.rememberPrivateSession(input.sessionId)
+        this.usedSessions.add(input.sessionId)
+      }
+      catch {
+        return { mode: 'blocked', reason: 'session_storage_failed', ownerGeneration: this.generation, selectionGeneration: this.selectionGeneration, expiresAt: deadlineAt }
+      }
+    }
     const bridge = this.bridge
     if (!bridge) {
       if (this.snapshot.profile.enabled)
@@ -630,16 +641,25 @@ export class MemoryOwner {
         return { mode: 'blocked', reason: 'new_session_required', ownerGeneration: this.generation, selectionGeneration: this.selectionGeneration, expiresAt: deadlineAt }
       return { mode: 'disabled', conversation: input.conversation, ownerGeneration: this.generation, selectionGeneration: this.selectionGeneration, expiresAt: deadlineAt }
     }
-    if (!this.usedSessions.has(input.sessionId) && input.conversation.turns.filter(turn => turn.type === 'user').length > 1)
+    if (!this.usedSessions.has(input.sessionId) && userTurns.length > 1)
       return { mode: 'blocked', reason: 'new_session_required', ownerGeneration: this.generation, selectionGeneration: this.selectionGeneration, expiresAt: deadlineAt }
     if (this.turns.has(referenceId))
       throw new Error('memory.reference_reused')
     const selection = this.snapshot.selection
     const modelKey = JSON.stringify([input.providerId, input.model])
-    if (!selection || selection.cardId !== input.cardId || selection.airiSessionId !== input.sessionId || selection.modelKey !== modelKey) {
-      this.selectionGeneration += 1
-      await bridge.selectCard(input.cardId, { airiSessionId: input.sessionId })
-      this.snapshot.selection = { cardId: input.cardId, airiSessionId: input.sessionId, modelKey }
+    try {
+      if (!selection || selection.cardId !== input.cardId || selection.airiSessionId !== input.sessionId || selection.modelKey !== modelKey) {
+        this.selectionGeneration += 1
+        await bridge.selectCard(input.cardId, { airiSessionId: input.sessionId })
+        this.snapshot.selection = { cardId: input.cardId, airiSessionId: input.sessionId, modelKey }
+      }
+      // Background synchronization can leave session creation pending. Surface its sanitized failure before preparing a turn.
+      if (bridge.synchronized)
+        await bridge.ensureSession(input.sessionId)
+    }
+    catch (cause) {
+      await this.publish()
+      return { mode: 'blocked', reason: failureCode(cause).toLowerCase(), ownerGeneration: this.generation, selectionGeneration: this.selectionGeneration, expiresAt: deadlineAt }
     }
     if (Date.now() >= deadlineAt || this.pendingCancels.delete(`${actor}:${referenceId}`))
       return { mode: 'blocked', reason: 'deadline_exceeded', ownerGeneration: this.generation, selectionGeneration: this.selectionGeneration, expiresAt: deadlineAt }
@@ -699,8 +719,10 @@ export class MemoryOwner {
             await this.publish()
           })
         }, Math.max(1, held.expiresAt - Date.now()))
-        await this.options.rememberPrivateSession(input.sessionId)
-        this.usedSessions.add(input.sessionId)
+        if (!this.usedSessions.has(input.sessionId)) {
+          await this.options.rememberPrivateSession(input.sessionId)
+          this.usedSessions.add(input.sessionId)
+        }
       }
       return {
         mode: result.mode,

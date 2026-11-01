@@ -211,6 +211,8 @@ pages:
       loopback_required: '127.0.0.1 または localhost のローカル接続先を指定してください。'
       token_required: '今回の起動で使う接続トークンを入力してください。'
       sync_required: '記憶の同期が必要です。再接続してからメッセージを送信してください。'
+      forbidden: 'アクセスが拒否されました。クライアントの権限とキャラクターへのアクセスを確認してください。創作ワールドではキャラクターの参加登録も必要です。'
+      session_storage_failed: '記憶用の会話であることを保存できません。ローカルストレージを確認して再試行してください。'
       new_session_required: '記憶と通常の履歴を分けるため、新しい会話を開始してください。'
       stop_unconfirmed: '前の出力の停止を確認できません。出力元のウィンドウを復旧してから再接続してください。'
       capability_missing: '接続したサーバーまたはアプリが必要な記憶機能に対応していません。'
@@ -263,7 +265,14 @@ pages:
     setup-remember-token: 再起動後も自動接続するには、接続前にトークンの暗号化保存をONにし、接続後に自動接続をONにしてください。
     setup-connection-action: 接続欄へ移動
     no-characters: 選択できるキャラクターがありません。名前と一人称を入力して作成してください。
-    no-worlds: 選択できるワールドがありません。下の欄でワールドを作成してください。
+    no-worlds: 選択できるワールドがありません。接続を更新して、標準の通常ワールドを読み込んでください。
+    real-world-default: 通常ワールド（普段の会話用）
+    world-real: 通常
+    world-fiction: 創作
+    world-option: '{name}（{realm}）'
+    world-everyday-note: 普段の会話では、標準の通常ワールドを選び、AIRIカードと紐付けてください。ワールドの新規作成や参加登録は不要です。
+    world-fiction-note: 創作ワールドは物語やロールプレイの記憶を分けるためのものです。会話を始める前にキャラクターの参加登録が必要です。
+    create-world-note: 物語やロールプレイ用の任意設定です。ここで新規作成するワールドは創作ワールドです。
     character: Metrodoros キャラクター
     choose-character: 既存のキャラクターを選択
     new-character: 新しいキャラクター名

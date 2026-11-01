@@ -293,6 +293,8 @@ pages:
       loopback_required: 'Use a local address such as 127.0.0.1 or localhost.'
       token_required: 'Enter a connection token for this app session.'
       sync_required: 'Memory needs to synchronize. Reconnect before sending a message.'
+      forbidden: 'Access was denied. Check client permissions and character access. Fiction worlds also require character membership.'
+      session_storage_failed: 'The private conversation marker could not be saved. Check local storage and try again.'
       new_session_required: 'Start a new conversation to keep memory and ordinary history separate.'
       stop_unconfirmed: 'The previous output has not stopped yet. Restore its window before reconnecting.'
       capability_missing: 'The connected server or app does not support the required memory features.'
@@ -345,7 +347,14 @@ pages:
     setup-remember-token: To reconnect after restarting AIRI, enable encrypted token storage before connecting, then enable automatic connection.
     setup-connection-action: Go to connection
     no-characters: No characters are available. Enter a name and pronoun to create one.
-    no-worlds: No active worlds are available. Create a world below.
+    no-worlds: No active worlds are available. Refresh the connection to load the built-in real world.
+    real-world-default: Real world (everyday use)
+    world-real: Real
+    world-fiction: Fiction
+    world-option: '{name} ({realm})'
+    world-everyday-note: For everyday conversations, select the built-in real world and bind your AIRI Card. No world creation or membership is required.
+    world-fiction-note: Fiction worlds separate stories and roleplay. Register the character as a world member before starting a conversation.
+    create-world-note: Optional for stories and roleplay. New worlds created here are fiction worlds.
     character: Metrodoros character
     choose-character: Choose an existing character
     new-character: New character name

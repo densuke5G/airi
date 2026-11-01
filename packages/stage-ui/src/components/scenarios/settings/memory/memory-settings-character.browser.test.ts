@@ -70,7 +70,7 @@ describe('character setup after authentication', () => {
     memory.snapshot.profile.cardBindings = []
     memory.snapshot.profile.worldId = null
     memory.snapshot.characters = [{ id: 'alpha', name: 'Alpha' }, { id: 'beta', name: 'Beta' }]
-    memory.snapshot.worlds = [{ id: 'earth', name: 'Earth' }, { id: 'moon', name: 'Moon' }]
+    memory.snapshot.worlds = [{ id: 'earth', name: 'Earth', realm: 'real' }, { id: 'moon', name: 'Moon', realm: 'real' }]
     reactive(state.cards).activeCardId = 'card'
   })
   afterEach(cleanup)
