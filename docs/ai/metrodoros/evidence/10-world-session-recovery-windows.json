@@ -83,7 +83,7 @@
   },
   "limits": [
     "No live user voice or paid model calls were part of these synthetic tests.",
-    "CI account billing still prevents jobs from starting."
+    "Prior CI run 41171463534 did not start because of account billing. Current CI results are reported separately."
   ],
   "visual": {
     "tool": "Vishot",
