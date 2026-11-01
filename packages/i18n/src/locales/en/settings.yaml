@@ -340,6 +340,12 @@ pages:
     new-conversation: Start a new conversation
     character-world: AIRI Card and character
     active-card: 'Active AIRI Card: {name}'
+    setup-connect-first: Connect to Metrodoros before selecting or creating a character or world.
+    setup-token-needed: After restarting AIRI, enter your existing token and verify the connection.
+    setup-remember-token: To reconnect after restarting AIRI, enable encrypted token storage before connecting, then enable automatic connection.
+    setup-connection-action: Go to connection
+    no-characters: No characters are available. Enter a name and pronoun to create one.
+    no-worlds: No active worlds are available. Create a world below.
     character: Metrodoros character
     choose-character: Choose an existing character
     new-character: New character name

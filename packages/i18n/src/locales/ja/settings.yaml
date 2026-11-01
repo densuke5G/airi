@@ -258,6 +258,12 @@ pages:
     new-conversation: 新しい会話を開始
     character-world: AIRI カードとキャラクター
     active-card: '現在の AIRI カード: {name}'
+    setup-connect-first: キャラクター・ワールドを選択または作成するには、先にMetrodorosへ接続してください。
+    setup-token-needed: AIRIを再起動した場合は、既存のトークンを入力して「接続を確認」を押してください。
+    setup-remember-token: 再起動後も自動接続するには、接続前にトークンの暗号化保存をONにし、接続後に自動接続をONにしてください。
+    setup-connection-action: 接続欄へ移動
+    no-characters: 選択できるキャラクターがありません。名前と一人称を入力して作成してください。
+    no-worlds: 選択できるワールドがありません。下の欄でワールドを作成してください。
     character: Metrodoros キャラクター
     choose-character: 既存のキャラクターを選択
     new-character: 新しいキャラクター名

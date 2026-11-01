@@ -139,6 +139,7 @@ function toCssSize(value?: string | number): string | undefined {
         <SelectValue
           v-else
           v-model="modelValue"
+          :placeholder="props.placeholder"
         />
       </div>
       <SelectIcon as-child>

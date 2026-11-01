@@ -3,7 +3,7 @@ import type { MemoryCommand, MemoryProfile } from '../../../../services/memory/c
 
 import { errorMessageFrom } from '@moeru/std'
 import { BasicButton, FieldCheckbox, FieldInput, FieldSelect } from '@proj-airi/ui'
-import { computed, onMounted, ref, toRaw, watch } from 'vue'
+import { computed, onMounted, ref, toRaw, useTemplateRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import DesktopMemorySettingsPanel from './desktop-memory-settings-panel.vue'
@@ -25,6 +25,7 @@ const sessions = useChatSessionStore()
 const snapshot = computed(() => memory.snapshot)
 const profile = ref<MemoryProfile>(structuredClone(memory.snapshot.profile))
 const token = ref('')
+const connectionSection = useTemplateRef<HTMLElement>('connectionSection')
 const characterName = ref('')
 const firstPerson = ref(t('settings.pages.memory-panel.first-person-default'))
 const firstPersonValid = computed(() => firstPerson.value.trim().length > 0 && [...firstPerson.value.trim()].length <= 20)
@@ -138,7 +139,7 @@ async function saveProfile() {
 
 async function createCharacter() {
   const name = characterName.value.trim()
-  if (!name || !firstPersonValid.value)
+  if (!snapshot.value.connected || !name || !firstPersonValid.value)
     return
   if (await run({ kind: 'create-character', name, firstPerson: firstPerson.value.trim() }))
     characterName.value = ''
@@ -146,10 +147,15 @@ async function createCharacter() {
 
 async function createWorld() {
   const name = worldName.value.trim()
-  if (!name)
+  if (!snapshot.value.connected || !name)
     return
-  await run({ kind: 'create-world', name })
-  worldName.value = ''
+  if (await run({ kind: 'create-world', name }))
+    worldName.value = ''
+}
+
+function focusConnection() {
+  connectionSection.value?.scrollIntoView({ block: 'start' })
+  connectionSection.value?.querySelector<HTMLInputElement>('input[type="password"]')?.focus()
 }
 
 async function startNewConversation() {
@@ -180,7 +186,7 @@ async function startNewConversation() {
 }
 
 async function bindCard() {
-  if (!cards.activeCard || !characterId.value || !worldId.value)
+  if (!snapshot.value.connected || !cards.activeCard || !characterId.value || !worldId.value)
     return
   const command = { kind: 'bind-card', cardId: cards.activeCardId, characterId: characterId.value, worldId: worldId.value } as const
   if (await run(command) && cards.activeCardId === command.cardId && characterId.value === command.characterId && worldId.value === command.worldId) {
@@ -220,7 +226,7 @@ async function bindModel() {
 
 <template>
   <div :class="['max-w-4xl flex flex-col gap-5', 'pb-8']">
-    <section :class="['rounded-xl bg-neutral-50 p-4', 'dark:bg-black/30']" aria-labelledby="memory-connection-heading">
+    <section ref="connectionSection" :class="['rounded-xl bg-neutral-50 p-4', 'dark:bg-black/30']" aria-labelledby="memory-connection-heading">
       <h2 id="memory-connection-heading" :class="['mb-3 text-lg font-semibold']">
         {{ t('settings.pages.memory-panel.connection') }}
       </h2>
@@ -340,25 +346,43 @@ async function bindModel() {
         <p :class="['mb-3 text-sm']">
           {{ t('settings.pages.memory-panel.active-card', { name: cards.activeCard?.name ?? t('settings.pages.memory-panel.none') }) }}
         </p>
+        <div v-if="!snapshot.connected" role="status" :class="['mb-3 flex flex-col gap-2 text-sm']">
+          <p>{{ t('settings.pages.memory-panel.setup-connect-first') }}</p>
+          <p v-if="snapshot.tokenRequired">
+            {{ t('settings.pages.memory-panel.setup-token-needed') }}
+          </p>
+          <p v-if="desktopFacade">
+            {{ t('settings.pages.memory-panel.setup-remember-token') }}
+          </p>
+          <BasicButton :class="['self-start']" @click="focusConnection">
+            {{ t('settings.pages.memory-panel.setup-connection-action') }}
+          </BasicButton>
+        </div>
+        <p v-else-if="!busy && !snapshot.characters.length" role="status" :class="['mb-3 text-sm']">
+          {{ t('settings.pages.memory-panel.no-characters') }}
+        </p>
+        <p v-if="snapshot.connected && !busy && !snapshot.worlds.length" role="status" :class="['mb-3 text-sm']">
+          {{ t('settings.pages.memory-panel.no-worlds') }}
+        </p>
         <div :class="['flex flex-col gap-3', 'sm:flex-row']">
-          <FieldSelect v-model="characterId" :options="characterOptions" :label="t('settings.pages.memory-panel.character')" :placeholder="t('settings.pages.memory-panel.choose-character')" layout="vertical" @update:model-value="characterSelectionDirty = true" />
-          <FieldSelect v-model="worldId" :options="worldOptions" :label="t('settings.pages.memory-panel.world')" :placeholder="t('settings.pages.memory-panel.choose-world')" layout="vertical" @update:model-value="worldSelectionDirty = true" />
+          <FieldSelect v-model="characterId" :disabled="busy || !snapshot.connected || !characterOptions.length" :options="characterOptions" :label="t('settings.pages.memory-panel.character')" :placeholder="t('settings.pages.memory-panel.choose-character')" layout="vertical" @update:model-value="characterSelectionDirty = true" />
+          <FieldSelect v-model="worldId" :disabled="busy || !snapshot.connected || !worldOptions.length" :options="worldOptions" :label="t('settings.pages.memory-panel.world')" :placeholder="t('settings.pages.memory-panel.choose-world')" layout="vertical" @update:model-value="worldSelectionDirty = true" />
         </div>
         <div :class="['mt-3']">
-          <BasicButton :disabled="busy || !cards.activeCard || !characterId || !worldId" @click="bindCard">
+          <BasicButton :disabled="busy || !snapshot.connected || !cards.activeCard || !characterId || !worldId" @click="bindCard">
             {{ t('settings.pages.memory-panel.bind-card') }}
           </BasicButton>
         </div>
         <div :class="['mt-4 flex flex-col gap-2', 'sm:flex-row']">
           <FieldInput v-model="characterName" :label="t('settings.pages.memory-panel.new-character')" />
           <FieldInput v-model="firstPerson" :label="t('settings.pages.memory-panel.first-person')" />
-          <BasicButton :disabled="busy || !characterName.trim() || !firstPersonValid" @click="createCharacter">
+          <BasicButton :disabled="busy || !snapshot.connected || !characterName.trim() || !firstPersonValid" @click="createCharacter">
             {{ t('settings.pages.memory-panel.create-character') }}
           </BasicButton>
         </div>
         <div :class="['mt-3 flex flex-col gap-2', 'sm:flex-row']">
           <FieldInput v-model="worldName" :label="t('settings.pages.memory-panel.new-world')" />
-          <BasicButton :disabled="busy || !worldName.trim()" @click="createWorld">
+          <BasicButton :disabled="busy || !snapshot.connected || !worldName.trim()" @click="createWorld">
             {{ t('settings.pages.memory-panel.create-world') }}
           </BasicButton>
         </div>

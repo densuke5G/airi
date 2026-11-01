@@ -138,3 +138,27 @@ Report: [Windows cross-app result](evidence/10-cross-app-windows.json).
 Focused checks: desktop 63, owner/connection 18, shared settings Chromium 13, chat Chromium 4, and scenario helpers 11 passed.
 Root typecheck completes 55 tasks. Desktop build and changed-file lint pass.
 Root lint still reports 795 errors in existing local runtime/tool artifacts, with 682 existing warnings.
+
+## Disconnected setup guidance, 2026-11-01
+
+The normal user profile exposed an initial-state gap: memory was enabled, but its token had not been saved across restart.
+Character and world lists were empty. Their selectors and creation buttons still allowed operations without an authenticated identity client.
+The generic Select also omitted its placeholder at the Reka SelectValue boundary.
+
+Long-term memory now explains the connection requirement beside the character form.
+Its navigation button scrolls to the connection section and focuses the existing token input.
+Disconnected selectors, creation, and binding stay disabled. Connection loss disables them again without clearing entered names.
+Connected empty lists explain creation. Failed world creation preserves its name, matching character creation.
+The shared Select forwards its existing placeholder prop to SelectValue.
+
+The user entered the existing token in AIRI. Read-only inspection then confirmed authentication and populated character/world selections.
+No production token, API key, or memory body was read into a diagnostic or published artifact.
+Production data was not used for visual fixtures or automated creation.
+
+Six new Chromium cases use real Pinia stores and real components. Only the external memory transport is substituted.
+The disconnected-operation and placeholder cases both fail before repair. The related settings run passes 18 cases.
+Root `pnpm typecheck` completes 55 tasks. `pnpm -F @proj-airi/i18n build` and the desktop build pass.
+Root `pnpm lint` still fails on generated local profiles and tool artifacts. No rule or ignore configuration was changed.
+
+Report: [disconnected setup on Windows](evidence/10-disconnected-setup-windows.json).
+Visual checks cover Japanese/light, English/dark, and Japanese at 420 px. All three show no horizontal overflow.

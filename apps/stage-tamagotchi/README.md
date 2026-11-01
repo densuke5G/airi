@@ -25,6 +25,9 @@ The next service process receives `METRODOROS_LLM_API_KEY`. Its LLM profile must
 The API key copy does not configure the server model or its bindings. Use the companion server README for those steps.
 Restart an already running service after saving, replacing, or deleting this key. AIRI does not force that restart.
 
+Connect before selecting or creating characters and worlds. After restart, enter the token again unless encrypted storage and automatic connection are enabled.
+Disconnected forms explain this requirement and provide a button that focuses the connection token input.
+Empty selectors show their prompts. Connected forms explain when there are no characters or active worlds.
 In Long-Term Memory, enter a name and a first-person pronoun with 1–20 characters to create a character.
 Choose the character and world, then press **Bind AIRI Card and world**. Background refreshes retain unsaved choices.
 Changing the active AIRI Card loads that card's saved mapping. A failed bind retains your choices.
