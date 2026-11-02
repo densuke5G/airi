@@ -5,7 +5,7 @@ import type { Conversation } from '@proj-airi/core-agent'
 import type { MemoryCommand, MemoryDeliveryReport, MemoryPrepared, MemoryPrepareInput, MemoryProfile, MemorySnapshot, MemorySpeechInput, MemoryStopRequest } from './contracts'
 import type { DesktopCredentialIdentity, DesktopStoredCredential } from './owner-desktop-credentials'
 
-import { createMetrodorosApi, failureCode, hash53, MemoryBridge, parseSettings, PersonaMigration, TokenHolder } from '@metrodoros/airi-adapter'
+import { backoffMs, classifyFailure, createMetrodorosApi, failureCode, hash53, MemoryBridge, parseSettings, PersonaMigration, TokenHolder } from '@metrodoros/airi-adapter'
 import { MetrodorosClient, ShortTermClient } from '@metrodoros/client'
 import { IdentityClient } from '@metrodoros/client/identity'
 import { jobKinds, jobStates } from '@metrodoros/contracts'
@@ -43,6 +43,7 @@ export interface MemoryOwnerOptions {
 /**
  * One owner controls authentication, writer leases, notification sync, and outbox dispatch.
  * Config commands serialize. Notification sync and outbox sends have separate task loops.
+ * Transient notification failures pause output and retry the same authenticated bridge with backoff.
  * A lost host invalidates the lease before cancellation and never acknowledges forgotten output.
  */
 export class MemoryOwner {
@@ -536,6 +537,7 @@ export class MemoryOwner {
   }
 
   private async notificationLoop(bridge: MemoryBridge, signal: AbortSignal): Promise<void> {
+    let attempt = 0
     while (!signal.aborted) {
       await this.delay(signal, 500)
       if (signal.aborted)
@@ -544,20 +546,43 @@ export class MemoryOwner {
         await bridge.syncNotifications(signal)
         if (signal.aborted || this.bridge !== bridge)
           return
+        attempt = 0
+        this.snapshot.connected = true
         this.snapshot.lastSync = Date.now()
         await this.publish()
       }
-      catch {
+      catch (cause) {
         if (signal.aborted || this.bridge !== bridge)
           return
-        await bridge.notificationDisconnected().catch(() => undefined)
+        let stopped = true
+        try {
+          await bridge.notificationDisconnected()
+        }
+        catch {
+          stopped = false
+        }
         if (signal.aborted || this.bridge !== bridge)
           return
+        if (!stopped)
+          this.suspended = true
         this.snapshot.connected = false
         this.snapshot.reason = 'sync_required'
-        this.tasks?.abort()
+        const failure = classifyFailure(cause)
+        // Forgetting can invalidate a page before its acknowledgment. Restart from the last acknowledged checkpoint.
+        const outdatedCheckpoint = failure.code === 'CONTEXT_INVALIDATED'
+          && typeof cause === 'object' && cause !== null && 'status' in cause && cause.status === 409
+        const recover = stopped && !this.suspended && this.snapshot.profile.enabled
+          && bridge.flusher.halted === undefined && (failure.kind === 'retry' || outdatedCheckpoint)
+          && !['ABORTED', 'STOP_INCOMPLETE', 'UNAUTHENTICATED', 'FORBIDDEN'].includes(failure.code)
+          && (!(cause instanceof Error) || !cause.message.startsWith('memory.'))
+        // Resume sends only after this bridge applies and acknowledges a fresh notification checkpoint.
+        if (!recover)
+          this.tasks?.abort()
         await this.publish()
-        return
+        if (!recover)
+          return
+        attempt += 1
+        await this.delay(signal, backoffMs(attempt))
       }
     }
   }

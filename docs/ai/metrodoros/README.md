@@ -22,3 +22,13 @@ Authenticated setup controls remain available after a conversation synchronizati
 Fresh conversations are marked private before their first memory attempt, including a failed attempt.
 Retries use this saved marker. Existing ordinary history still requires a new conversation.
 If the marker cannot be saved, preparation stops before a server session opens.
+
+## Temporary connection failures
+
+A temporary network failure or HTTP 429, 503, or 504 pauses memory output and starts automatic synchronization retries.
+The retries keep the authenticated bridge, session, private marker, and pending event IDs. They use the existing capped backoff policy.
+New output is allowed only after notification changes and their checkpoint are acknowledged.
+If forgetting invalidates an acknowledgment, synchronization restarts from the last acknowledged checkpoint and applies the fresh reset first.
+
+An interrupted reply does not replay automatically. After synchronization returns, continue in the same conversation or resend the failed message.
+Authentication failures, changed stores, and unconfirmed output stops require explicit recovery. Disconnecting or changing settings cancels pending retries.
