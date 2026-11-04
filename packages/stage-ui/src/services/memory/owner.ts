@@ -706,7 +706,7 @@ export class MemoryOwner {
     const timer = setTimeout(() => controller.abort(), Math.max(1, deadlineAt - Date.now()))
     const started = performance.now()
     try {
-      const result = await bridge.prepareRequestContext({
+      const request = {
         airiSessionId: input.sessionId,
         userMessageId: input.userMessageId,
         attemptId: input.attemptId,
@@ -714,7 +714,14 @@ export class MemoryOwner {
         inputKind: input.inputKind,
         modelKey,
         signal: controller.signal,
-      })
+      }
+      let result = await bridge.prepareRequestContext(request)
+      // A rejected context can leave no confirmed persona cache. Obtain a fresh server packet once,
+      // under the original abort timer and identities. Never send with the rejected packet or an AIRI fallback.
+      if (result.mode === 'blocked' && result.reason === 'persona_unconfirmed'
+        && !controller.signal.aborted && this.current(held) && Date.now() < deadlineAt) {
+        result = await bridge.prepareRequestContext(request)
+      }
       if (controller.signal.aborted || !this.current(held)) {
         if ('turn' in result)
           await bridge.cancelTurn(result.turn)
