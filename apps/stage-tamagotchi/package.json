@@ -105,6 +105,7 @@
     "@xsai/stream-transcription": "catalog:",
     "@xsai/tool": "catalog:",
     "@xsai/utils-chat": "catalog:",
+    "@zeno/airi-adapter": "workspace:*",
     "alien-signals": "catalog:",
     "animejs": "catalog:",
     "async-mutex": "catalog:",

@@ -74,3 +74,10 @@ pnpm -F @proj-airi/stage-tamagotchi exec vitest run src/main/services/airi/compu
 Set `AIRI_COMPUTER_USE_LIVE=1` to include the bundled CLI/private-daemon test.
 It invokes help and an invalid argument, without injecting desktop input.
 For renderer verification, launch with `APP_REMOTE_DEBUG=true` and an unused `APP_REMOTE_DEBUG_PORT`, then attach `agent-browser` to the chat CDP target.
+
+## Zeno
+
+Settings → Zeno connects to a local Zeno service with a pairing token.
+The main process encrypts the token and journals tool requests before HTTP writes.
+Meeting mute stops assistant audio without changing microphone settings or the original AIRI mute flag.
+See [the integration decision](../../docs/ai/adr/zeno-integration.md) for ownership and acceptance gaps.

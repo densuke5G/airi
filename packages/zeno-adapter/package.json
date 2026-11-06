@@ -1,0 +1,27 @@
+{
+  "name": "@zeno/airi-adapter",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./conversation-tools": {
+      "types": "./conversation-tools.d.ts",
+      "default": "./conversation-tools.js"
+    },
+    "./notification-runner": {
+      "types": "./notification-runner.d.ts",
+      "default": "./notification-runner.js"
+    },
+    "./contracts": {
+      "types": "./contracts.d.ts"
+    },
+    "./tools": {
+      "types": "./tools.d.ts",
+      "default": "./tools.js"
+    }
+  }
+}
