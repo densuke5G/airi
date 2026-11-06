@@ -29,6 +29,7 @@ import {
 } from '../libs/product-signals/headers'
 import { getMemoryConnection, getOptionalMemoryConnection } from '../services/memory/connection'
 import { restoreMemorySourceText } from '../services/memory/source-text'
+import { createPresentedZenoContext } from '../services/zeno/presented-notice'
 import { useLLM } from './ai/chat-llm/llm'
 import { resolveLlmTools } from './ai/chat-llm/tool-resolver'
 import { useLlmToolsStore } from './ai/chat-llm/tools'
@@ -544,6 +545,9 @@ export const useChatStore = defineStore('chat', () => {
       ingest: envelope => chatContext.ingestContextMessage(envelope),
       snapshot: () => {
         const snapshot = { ...chatContext.getContextsSnapshot() }
+        const notice = createPresentedZenoContext()
+        if (notice)
+          snapshot[notice.contextId] = [notice]
         // Account data belongs to this request, not the persistent context registry.
         // A signed-out request therefore cannot inherit the previous account snapshot.
         const account = createUserAccountContext(authStore)

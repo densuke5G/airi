@@ -220,3 +220,10 @@ The default pack contains twelve generated chibi reactions of AIRI's official bl
 See [artwork provenance](src/assets/stickers/README.md) for references, exact prompts, and inspection notes.
 These are static assets. No runtime image-generation dependency is included.
 The four development-only Fluent Emoji images are removed. No old-ID migration is included.
+
+## Zeno surfaces
+
+The Zeno settings panel and Stage notice card use the desktop transport installed through Eventa.
+Shared contract types contain no renderer credentials.
+Automatic notifications do not submit chat turns or memory writes.
+See [the integration decision](../../docs/ai/adr/zeno-integration.md).

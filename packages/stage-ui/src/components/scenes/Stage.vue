@@ -8,6 +8,7 @@ import type { UnElevenLabsOptions } from 'unspeech'
 
 import type { EmotionPayload } from '../../constants/emotions'
 import type { SpeechTransport, StageTtsSession, StreamingSessionSnapshot } from '../../libs/speech/tts-session'
+import type { ZenoConnection, ZenoSpeechRequest, ZenoSpeechResult } from '../../services/zeno/contracts'
 
 import { defineInvokeHandler } from '@moeru/eventa'
 import { errorMessageFrom, sleep } from '@moeru/std'
@@ -30,6 +31,7 @@ import { useBroadcastChannel } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { computed, nextTick, onMounted, onUnmounted, ref, shallowReactive, shallowRef, watch } from 'vue'
 
+import ZenoNotice from '../scenarios/zeno-notice.vue'
 import StageRenderError from './stage-render-error.vue'
 
 import { useDuckDb } from '../../composables/use-duck-db'
@@ -45,6 +47,8 @@ import { registerLive2DExpressionHost } from '../../services/live2d-expression'
 import { getMemoryConnection, getOptionalMemoryConnection } from '../../services/memory/connection'
 import { markPrivateSpeechTurn, memoryTracesProtected } from '../../services/memory/privacy'
 import { getSpeechBusContext, speechOutputGetPlaybackState } from '../../services/speech/bus'
+import { observeZenoConnection } from '../../services/zeno/connection'
+import { notificationPrefix } from '../../services/zeno/notification-prefix'
 import { useLlmStreamingControlStore } from '../../stores/ai/chat-llm/streaming-control'
 import { useAudioContext, useSpeakingStore } from '../../stores/audio'
 import { useBackgroundStore } from '../../stores/background'
@@ -164,7 +168,25 @@ const disposePlaybackStateHandler = defineInvokeHandler(
 const { audioContext } = useAudioContext()
 const currentAudioSource = ref<AudioBufferSourceNode>()
 const speechOutputControlStore = useSpeechOutputControlStore()
-const { latestStopRequest, speechMuted } = storeToRefs(speechOutputControlStore)
+const { latestStopRequest, effectiveSpeechMuted: speechMuted, userSpeechState } = storeToRefs(speechOutputControlStore)
+const zenoConversationBusy = ref(false)
+let zenoConnection: ZenoConnection | undefined
+let zenoSession: StageTtsSession | undefined
+let zenoGeneration = 0
+let zenoCharacterVersion = 0
+let zenoSynthesis: AbortController | undefined
+const zenoAttempts = new Map<string, { request: ZenoSpeechRequest, started: boolean, done: boolean, failed: boolean, finish: (result: ZenoSpeechResult) => void }>()
+const zenoKnownIntents = new Set<string>()
+
+async function authorizeZeno(intentId: string): Promise<boolean> {
+  const attempt = zenoAttempts.get(intentId)
+  if (!attempt)
+    return !zenoKnownIntents.has(intentId)
+  if (speechMuted.value || userSpeechState.value !== 'idle' || zenoConversationBusy.value || attempt.request.generation !== zenoGeneration)
+    return false
+  return await zenoConnection?.authorize(attempt.request.claim.delivery.attempt_id!, zenoGeneration) ?? false
+}
+
 const lastVrmInteractionAt = new Map<VrmInteractionTarget, number>()
 const VRM_INTERACTION_COOLDOWN_MS = 450
 
@@ -264,6 +286,10 @@ function resetAssistantSpeechSurface(source: string) {
 }
 
 const { sending: chatSending } = storeToRefs(useChatStore())
+watch(chatSending, (sending) => {
+  if (!sending)
+    zenoConversationBusy.value = false
+})
 const { presenceOverride } = storeToRefs(useSettingsPresenceBubble())
 
 // `sending` is raised before the request leaves and cleared once the send
@@ -396,6 +422,8 @@ async function playSpecialToken(
 const lipSyncNode = ref<AudioNode>()
 
 async function playFunction(item: Parameters<Parameters<typeof createPlaybackManager<AudioBuffer>>[0]['play']>[0], signal: AbortSignal): Promise<void> {
+  if (signal.aborted || speechMuted.value || !await authorizeZeno(item.intentId))
+    throw new DOMException('Speech output inhibited', 'AbortError')
   if (!audioContext || !item.audio)
     return
 
@@ -417,6 +445,11 @@ async function playFunction(item: Parameters<Parameters<typeof createPlaybackMan
   }
 
   const source = audioContext.createBufferSource()
+  if (signal.aborted || speechMuted.value || !await authorizeZeno(item.intentId))
+    throw new DOMException('Speech output inhibited', 'AbortError')
+  const zenoAttempt = zenoAttempts.get(item.intentId)
+  if (zenoAttempt)
+    zenoAttempt.started = true
   currentAudioSource.value = source
   source.buffer = item.audio
 
@@ -491,6 +524,8 @@ const speechPipeline = createSpeechPipeline<AudioBuffer>({
     sentenceChunking: usesIrodori() ? { minChars: 30, maxChars: 50, sentences: 2 } : undefined,
   }),
   tts: async (request, signal) => {
+    if (!await authorizeZeno(request.intentId))
+      return null
     if (signal.aborted)
       return null
 
@@ -646,7 +681,7 @@ let currentSession: StageTtsSession | null = null
 
 initIOTracer()
 useIOTraceBridge(speechPipeline)
-void speechRuntimeStore.registerHost(speechPipeline)
+const speechHostReady = speechRuntimeStore.registerHost(speechPipeline)
 void getOptionalMemoryConnection()?.registerSpeechHost(async (request) => {
   for (const referenceId of request.referenceIds) {
     if (currentSession && memoryIntentRefs.get(currentSession.intentId) === referenceId)
@@ -686,7 +721,9 @@ void getOptionalMemoryConnection()?.registerSpeechHost(async (request) => {
     currentSession.end()
   }
   return true
-}).then((dispose) => { stopMemorySpeechHost = dispose }).catch(() => undefined)
+}).then((dispose) => {
+  stopMemorySpeechHost = dispose
+}).catch(() => undefined)
 
 onUnmounted(() => {
   void stopMemorySpeechHost?.().catch(() => undefined)
@@ -872,7 +909,25 @@ function setupAnalyser() {
 // branch on provider id anywhere below — the factory is the single
 // decision point. See `packages/stage-ui/src/libs/speech/tts-session.ts`.
 
+function settleZeno(intentId: string) {
+  const attempt = zenoAttempts.get(intentId)
+  if (attempt?.done && playbackManager.isIdleForIntent(intentId))
+    attempt.finish(attempt.failed ? (attempt.started ? 'unknown' : 'failed') : attempt.started ? 'spoken' : 'failed')
+}
+
+async function stopZeno() {
+  zenoSynthesis?.abort()
+  zenoSession?.cancel('zeno-cancelled')
+  for (const [intentId, attempt] of zenoAttempts) {
+    await speechPipeline.stopOwner(`zeno:${attempt.request.claim.delivery.attempt_id}`)
+    playbackManager.stopByIntent(intentId, 'zeno-cancelled')
+    attempt.finish(attempt.started ? 'unknown' : 'suppressed')
+  }
+  zenoSession = undefined
+}
+
 function stopSpeechOutput(reason: string) {
+  void stopZeno()
   currentSession?.cancel(reason)
   currentSession = null
   speechPipeline.stopAll(reason)
@@ -979,6 +1034,12 @@ function openTtsSession(turnId: string, ownerId = activeCardId.value): StageTtsS
     }),
     hooks: {
       onError: (err) => {
+        const attempt = session && zenoAttempts.get(session.intentId)
+        if (attempt) {
+          attempt.failed = true
+          attempt.done = true
+          settleZeno(session!.intentId)
+        }
         console.error('[Speech Pipeline] streaming session error', {
           provider: activeSpeechProvider.value,
           model: activeSpeechModel.value,
@@ -991,6 +1052,11 @@ function openTtsSession(turnId: string, ownerId = activeCardId.value): StageTtsS
         clearIfActive()
       },
       onDone: () => {
+        const attempt = session && zenoAttempts.get(session.intentId)
+        if (attempt) {
+          attempt.done = true
+          settleZeno(session!.intentId)
+        }
         clearIfActive()
       },
     },
@@ -1012,6 +1078,9 @@ watch(speechMuted, (muted) => {
 }, { immediate: true })
 
 chatHookCleanups.push(onBeforeMessageComposed(async (_message, context) => {
+  zenoConversationBusy.value = true
+  await stopZeno()
+  await publishZenoHost()
   expressionSpeechActivity.clear()
   playbackManager.stopAll('new-message')
   resetAssistantSpeechSurface('new-message')
@@ -1058,6 +1127,8 @@ chatHookCleanups.push(onStreamEnd(async (context) => {
 }))
 
 chatHookCleanups.push(onAssistantResponseEnd(async (_message, context) => {
+  zenoConversationBusy.value = false
+  void publishZenoHost()
   if (context.requestContextId)
     return
   currentSession?.end()
@@ -1205,6 +1276,124 @@ defineExpose({
     }
   },
 })
+async function publishZenoHost() {
+  if (!zenoConnection)
+    return
+  const speechState = speechMuted.value || userSpeechState.value === 'unknown'
+    ? 'unknown'
+    : userSpeechState.value === 'busy' || zenoConversationBusy.value || (nowSpeaking.value && !zenoSession) ? 'busy' : 'idle'
+  try {
+    await zenoConnection.command({ kind: 'host', state: {
+      active: speechRuntimeStore.isHost(),
+      characterId: String(zenoCharacterVersion),
+      speechState,
+    } })
+  }
+  catch {
+    // Zeno disconnects cannot cancel an ordinary AIRI conversation.
+  }
+}
+
+async function speakZeno(request: ZenoSpeechRequest): Promise<ZenoSpeechResult> {
+  await stopZeno()
+  if (!zenoConnection || speechMuted.value || userSpeechState.value !== 'idle' || zenoConversationBusy.value)
+    return 'suppressed'
+  zenoGeneration = request.generation
+  const controller = new AbortController()
+  zenoSynthesis = controller
+  const prefix = request.claim.notification.source_kind === 'focus'
+    ? ''
+    : await notificationPrefix(JSON.stringify({
+        name: activeCard.value?.name,
+        personality: activeCard.value?.personality,
+        description: activeCard.value?.description,
+      }), controller.signal)
+  if (controller.signal.aborted || speechMuted.value || userSpeechState.value !== 'idle' || zenoConversationBusy.value
+    || !await zenoConnection.authorize(request.claim.delivery.attempt_id!, request.generation)) {
+    return 'suppressed'
+  }
+  const facts = request.claim.notification.source_kind === 'focus'
+    ? request.claim.body
+    : `「${request.claim.title}」、${new Intl.DateTimeFormat('ja-JP', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(request.claim.notification.due_at))}。`
+  const session = openTtsSession(`zeno:${request.claim.delivery.attempt_id}`, `zeno:${request.claim.delivery.attempt_id}`)
+  zenoSession = session
+  markPrivateSpeechTurn(session.intentId)
+  zenoKnownIntents.add(session.intentId)
+  return new Promise<ZenoSpeechResult>((resolve) => {
+    const timer = setTimeout(() => {
+      void stopZeno()
+    }, 12000)
+    const finish = (result: ZenoSpeechResult) => {
+      if (!zenoAttempts.delete(session.intentId))
+        return
+      clearTimeout(timer)
+      session.end()
+      if (zenoSession === session)
+        zenoSession = undefined
+      resolve(result)
+    }
+    zenoAttempts.set(session.intentId, { request, started: false, done: false, failed: false, finish })
+    session.appendText(prefix + facts)
+    session.finishInput()
+    session.end()
+  })
+}
+
+speechPipeline.on('onSpeechRequestsComplete', ({ intentId }) => {
+  const attempt = zenoAttempts.get(intentId)
+  if (attempt) {
+    attempt.done = true
+    settleZeno(intentId)
+  }
+})
+speechPipeline.on('onTtsUnavailable', ({ request }) => {
+  const attempt = zenoAttempts.get(request.intentId)
+  if (attempt)
+    attempt.failed = true
+})
+playbackManager.onEnd(({ item }) => {
+  queueMicrotask(() => settleZeno(item.intentId))
+})
+playbackManager.onInterrupt(({ item }) => {
+  const attempt = zenoAttempts.get(item.intentId)
+  if (attempt)
+    attempt.finish(attempt.started ? 'unknown' : 'suppressed')
+})
+playbackManager.onReject(({ item }) => {
+  const attempt = zenoAttempts.get(item.intentId)
+  if (attempt) {
+    attempt.failed = true
+    queueMicrotask(() => settleZeno(item.intentId))
+  }
+})
+let stopZenoHost: (() => void) | undefined
+const stopZenoConnection = observeZenoConnection((connection) => {
+  stopZenoHost?.()
+  zenoConnection = connection
+  if (!connection)
+    return
+  void speechHostReady.then(() => {
+    if (zenoConnection !== connection || !speechRuntimeStore.isHost())
+      return
+    stopZenoHost = connection.registerSpeechHost(speakZeno, stopZeno)
+    void publishZenoHost()
+  })
+})
+watch([activeCard, activeSpeechProvider, activeSpeechModel, activeSpeechVoice, userSpeechState, nowSpeaking, zenoConversationBusy, speechMuted], () => {
+  if (userSpeechState.value !== 'idle' || zenoConversationBusy.value)
+    void stopZeno()
+  void publishZenoHost()
+})
+watch([activeCard, activeSpeechProvider, activeSpeechModel, activeSpeechVoice], () => {
+  zenoCharacterVersion++
+  void stopZeno().then(publishZenoHost)
+}, { flush: 'sync' })
+onUnmounted(() => {
+  void zenoConnection?.command({ kind: 'host', state: { active: false, characterId: String(zenoCharacterVersion), speechState: 'unknown' } }).catch(() => undefined)
+  stopZenoConnection()
+  stopZenoHost?.()
+  void stopZeno()
+})
 </script>
 
 <template>
@@ -1325,6 +1514,7 @@ defineExpose({
         :model-id="stageModelSelected"
         @retry="retryStageRenderer"
       />
+      <ZenoNotice />
     </div>
   </div>
 </template>

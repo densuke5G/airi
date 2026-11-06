@@ -42,6 +42,7 @@ import { setupMcpStdioManager } from './services/airi/mcp-servers'
 import { setupMetrodorosService } from './services/airi/metrodoros'
 import { setupExtensionHost } from './services/airi/plugins'
 import { setupArtistryBridge } from './services/airi/widgets/artistry-bridge'
+import { setupZenoService } from './services/airi/zeno'
 import { setupAutoUpdater } from './services/electron/auto-updater'
 import { setupGlobalShortcutService } from './services/electron/global-shortcut'
 import { setupPermissionHandlers } from './services/electron/media-permissions'
@@ -312,6 +313,10 @@ app.whenReady().then(async () => {
     dependsOn: { lifecycle, i18n, chatWindow },
     build: ({ dependsOn }) => setupMetrodorosService({ ...dependsOn, ipcMain, startConversation: dependsOn.chatWindow.startMemoryConversation }),
   })
+  const zeno = injeca.provide('modules:zeno', {
+    dependsOn: { lifecycle, i18n },
+    build: ({ dependsOn }) => setupZenoService({ ...dependsOn, ipcMain }),
+  })
 
   const spotlightWindow = injeca.provide('windows:spotlight', {
     dependsOn: { serverChannel, i18n, chatWindow, globalShortcut, appConfig },
@@ -344,7 +349,7 @@ app.whenReady().then(async () => {
   })
 
   const mainWindow = injeca.provide('windows:main', {
-    dependsOn: { editorWindow, settingsWindow, chatWindow, widgetsManager, noticeWindow, beatSync, autoUpdater, serverChannel, godotStageManager, mcpStdioManager, i18n, onboardingWindowManager, appleSpeechTranscription, appleVision, ioTraceRecording, metrodoros },
+    dependsOn: { editorWindow, settingsWindow, chatWindow, widgetsManager, noticeWindow, beatSync, autoUpdater, serverChannel, godotStageManager, mcpStdioManager, i18n, onboardingWindowManager, appleSpeechTranscription, appleVision, ioTraceRecording, metrodoros, zeno },
     build: async ({ dependsOn }) => setupMainWindow({
       ...dependsOn,
       onWindowCreated: (window) => {
