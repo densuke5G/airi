@@ -9,6 +9,7 @@ import { ToasterRoot } from '@proj-airi/stage-ui/components'
 import { useInferencePreload } from '@proj-airi/stage-ui/composables'
 import { usePiniaSynced } from '@proj-airi/stage-ui/libs/pinia'
 import { initializeAnalytics } from '@proj-airi/stage-ui/libs/product-signals'
+import { initializeZenoTools } from '@proj-airi/stage-ui/services/zeno/tools'
 import { useAuthStore } from '@proj-airi/stage-ui/stores/auth'
 import { useCharacterOrchestratorStore } from '@proj-airi/stage-ui/stores/character'
 import { useChatStore } from '@proj-airi/stage-ui/stores/chat'
@@ -66,6 +67,7 @@ import { initializeElectronAuthCallbackBridge } from './bridges/electron-auth-ca
 import { initializeIOTraceRecordingBridge } from './bridges/io-trace-recording'
 import { initializeMemoryConnection } from './bridges/metrodoros'
 import { initializeStageThreeRuntimeTraceBridge } from './bridges/stage-three-runtime-trace'
+import { initializeZenoConnection } from './bridges/zeno'
 import { useLanguage } from './composables/use-language'
 import { useServerChannelSettingsStore } from './stores/settings/server-channel'
 import { useStageWindowLifecycleStore } from './stores/stage-window-lifecycle'
@@ -83,11 +85,13 @@ const router = useRouter()
 const route = useRoute()
 const context = useElectronEventaContext()
 const stopMemoryConnection = initializeMemoryConnection(context.value)
+const stopZenoConnection = initializeZenoConnection(context.value)
 const getMainLocale = useElectronEventaInvoke(i18nGetLocale)
 const setLocale = useElectronEventaInvoke(i18nSetLocale)
 const windowContext = resolveRendererWindowContext()
 const initialRoutePath = resolveInitialRendererRoutePath(route.path)
 const chatStore = useChatStore()
+let stopZenoTools: (() => void) | undefined
 const builtinToolsStore = useTamagotchiBuiltinToolsStore()
 const mcpToolsStore = useTamagotchiMcpToolsStore()
 const pluginToolsStore = useTamagotchiPluginToolsStore()
@@ -112,8 +116,13 @@ async function refreshPluginRuntimeTools() {
 // Every renderer creates the runtime tool stores for synchronized state. Only
 // the main Stage renderer discovers tools and keeps executors.
 const stopLeadershipListener = syncedPinia.onLeadershipChange((isLeader) => {
-  if (!isLeader)
+  if (!isLeader) {
+    stopZenoTools?.()
+    stopZenoTools = undefined
     return
+  }
+
+  stopZenoTools ??= initializeZenoTools(syncedPinia)
 
   void builtinToolsStore.refresh().catch((error) => {
     console.warn('[App] Failed to refresh built-in runtime tools:', error)
@@ -377,6 +386,8 @@ onUnmounted(() => {
   chatStore.dispose()
   fullStageRuntime?.dispose()
   stopMemoryConnection()
+  stopZenoTools?.()
+  stopZenoConnection()
 })
 </script>
 

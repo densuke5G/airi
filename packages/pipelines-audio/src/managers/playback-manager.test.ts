@@ -21,6 +21,25 @@ function createPlaybackItem(id: string, priority: number, intentId: string, owne
 }
 
 describe('createPlaybackManager', () => {
+  it('keeps an intent busy through queued buffers and releases it only after the last buffer ends', async () => {
+    const ends = new Map<string, () => void>()
+    const manager = createPlaybackManager({
+      maxVoices: 1,
+      overflowPolicy: 'queue',
+      play: (item, signal) => new Promise<void>((resolve) => {
+        ends.set(item.id, resolve)
+        signal.addEventListener('abort', () => resolve(), { once: true })
+      }),
+    })
+    manager.schedule(createPlaybackItem('first', 1, 'notice'))
+    manager.schedule(createPlaybackItem('second', 1, 'notice'))
+    expect(manager.isIdleForIntent('notice')).toBe(false)
+    ends.get('first')?.()
+    await vi.waitFor(() => expect(ends.has('second')).toBe(true))
+    expect(manager.isIdleForIntent('notice')).toBe(false)
+    ends.get('second')?.()
+    await vi.waitFor(() => expect(manager.isIdleForIntent('notice')).toBe(true))
+  })
   it('does not start queued playback when stopping all playback', () => {
     const play = vi.fn((_item, signal) => new Promise<void>((resolve) => {
       signal.addEventListener('abort', () => resolve(), { once: true })

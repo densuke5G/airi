@@ -2097,6 +2097,9 @@ importers:
       '@xsai/utils-chat':
         specifier: 'catalog:'
         version: 0.5.1
+      '@zeno/airi-adapter':
+        specifier: workspace:*
+        version: link:../../packages/zeno-adapter
       alien-signals:
         specifier: 'catalog:'
         version: 3.2.1
@@ -5171,6 +5174,9 @@ importers:
       '@xsai/utils-chat':
         specifier: 'catalog:'
         version: 0.5.1
+      '@zeno/airi-adapter':
+        specifier: workspace:*
+        version: link:../zeno-adapter
       animejs:
         specifier: 'catalog:'
         version: 4.5.0(@types/three@0.185.4)(three@0.185.1)
@@ -6022,6 +6028,8 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.2.0
+
+  packages/zeno-adapter: {}
 
   plugins/airi-plugin-bilibili-laplace:
     dependencies:

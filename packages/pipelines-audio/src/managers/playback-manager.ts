@@ -391,6 +391,8 @@ export function createPlaybackManager<TAudio>(
   }
 
   return {
+    isIdleForIntent: (intentId: string) => ![...active.values()].some(entry => entry.item.intentId === intentId)
+      && !waiting.some(entry => entry.item.intentId === intentId),
     schedule,
     stopAll(reason = 'stop-all') {
       waiting.length = 0

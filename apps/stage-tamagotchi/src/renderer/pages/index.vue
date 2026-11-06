@@ -710,6 +710,13 @@ const voiceInputSession = useVoiceInputSession(stream, {
   },
 })
 
+watch([enabled, stream, pushToTalkActive, voiceInputSession.isRecording, voiceInputSession.isTranscribing, voiceInputSession.vadLoaded, voiceInputSession.vadError], () => {
+  const control = useSpeechOutputControlStore()
+  control.userSpeechState = pushToTalkActive.value || voiceInputSession.isRecording.value || voiceInputSession.isTranscribing.value
+    ? 'busy'
+    : !enabled.value ? 'idle' : stream.value && voiceInputSession.vadLoaded.value && !voiceInputSession.vadError.value ? 'idle' : 'unknown'
+}, { immediate: true })
+
 async function startPushToTalkRecording() {
   pushToTalkCancelled = false
   pendingPushToTalkText = undefined

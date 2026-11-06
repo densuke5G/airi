@@ -135,6 +135,7 @@
     "@xsai/stream-transcription": "catalog:",
     "@xsai/tool": "catalog:",
     "@xsai/utils-chat": "catalog:",
+    "@zeno/airi-adapter": "workspace:*",
     "animejs": "catalog:",
     "async-mutex": "catalog:",
     "better-auth": "catalog:",

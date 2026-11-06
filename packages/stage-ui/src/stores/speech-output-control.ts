@@ -1,6 +1,6 @@
 import { useBroadcastChannel, useLocalStorage } from '@vueuse/core'
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 export type SpeechOutputStopReason = 'manual-chat' | 'manual-all' | 'muted'
 
@@ -19,6 +19,17 @@ export const useSpeechOutputControlStore = defineStore('speech-output-control', 
     window: typeof window === 'undefined' ? undefined : window,
   })
   const latestStopRequest = ref<SpeechOutputStopRequest>()
+  const meetingMuted = ref(false)
+  const userSpeechState = ref<'idle' | 'busy' | 'unknown'>('unknown')
+  const effectiveSpeechMuted = computed(() => speechMuted.value || meetingMuted.value)
+
+  function setMeetingMuted(value: boolean) {
+    if (meetingMuted.value === value)
+      return
+    meetingMuted.value = value
+    if (value)
+      requestStopSpeaking('muted')
+  }
   const { data: incomingStopRequest, post: broadcastStopRequest } = useBroadcastChannel<SpeechOutputStopRequest, SpeechOutputStopRequest>({
     name: 'airi-speech-output-control',
   })
@@ -71,6 +82,10 @@ export const useSpeechOutputControlStore = defineStore('speech-output-control', 
 
   return {
     latestStopRequest,
+    meetingMuted,
+    effectiveSpeechMuted,
+    userSpeechState,
+    setMeetingMuted,
     speechMuted,
     requestStopSpeaking,
     setSpeechMuted,
