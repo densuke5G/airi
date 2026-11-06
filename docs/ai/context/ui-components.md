@@ -664,7 +664,7 @@ Displays field information on the left and a compact action button on the right.
 | `label` | `string` | *(required)* | Label |
 | `description` | `string?` | — | Helper text |
 | `options` | `SelectOptionItem<T>[] \| SelectOptionGroupItem<T>[]?` | — | Options |
-| `placeholder` | `string?` | — | Placeholder |
+| `placeholder` | `string?` | — | Text shown before a value is selected |
 | `disabled` | `boolean?` | — | Disabled |
 | `layout` | `'horizontal' \| 'vertical'` | `'horizontal'` | Layout |
 | `by` | `string \| ((a, b) => boolean)?` | — | Comparison |

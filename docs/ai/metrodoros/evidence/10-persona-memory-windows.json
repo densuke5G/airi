@@ -1,0 +1,78 @@
+{
+  "schema": "10-persona-memory-recovery/v1",
+  "diagnosis": [
+    "registration_context_invalidated_without_confirmed_cache",
+    "consolidation_profile_unmapped",
+    "openai_completion_parameters_rejected",
+    "probe_registered_without_canonical_plan",
+    "probe_json_mode_instruction_missing"
+  ],
+  "source_sha256": {
+    "packages/stage-ui/src/services/memory/owner.ts": "3599e3541424cb8d30dfc565579171cf2e0eafa4dc6b84e94a49e70b1812ece6",
+    "packages/stage-ui/src/services/memory/owner-persona-retry-metrodoros.test.ts": "4af0f50796f74936682464a6a5b98266deb9eaf3ca8c20f8b2e861fd06f3bfb2",
+    "apps/stage-tamagotchi/scripts/metrodoros-persona-memory-acceptance.mjs": "fe89a70730ea717c15af59a872846a5c73dbde8915a23ae437dc6df9efec36e8"
+  },
+  "synthetic_pipeline": {
+    "schema": "10-persona-memory/v1",
+    "realHttp": true,
+    "realSqlite": true,
+    "realAiriOwner": true,
+    "realModel": false,
+    "syntheticAudio": true,
+    "checks": {
+      "profile_registered_and_pinned": true,
+      "canonical_probe_visible": true,
+      "probe_completed": true,
+      "real_registration_conflict": true,
+      "same_send_recovers": true,
+      "updated_persona_only": true,
+      "confirmed_output_gate": true,
+      "delivery_closed_at_server": true,
+      "input_pinned_to_profile": true,
+      "long_term_memory_adopted": true,
+      "visible_in_viewer_api": true
+    },
+    "passed": true
+  },
+  "live_model_pipeline": {
+    "schema": "10-persona-memory/v1",
+    "realHttp": true,
+    "realSqlite": true,
+    "realAiriOwner": true,
+    "realModel": true,
+    "syntheticAudio": true,
+    "checks": {
+      "profile_registered_and_pinned": true,
+      "canonical_probe_visible": true,
+      "probe_completed": true,
+      "real_registration_conflict": true,
+      "same_send_recovers": true,
+      "updated_persona_only": true,
+      "confirmed_output_gate": true,
+      "delivery_closed_at_server": true,
+      "input_pinned_to_profile": true,
+      "long_term_memory_adopted": true,
+      "visible_in_viewer_api": true
+    },
+    "passed": true
+  },
+  "checks": {
+    "shared_memory_cases": 70,
+    "new_persona_cases": 6,
+    "desktop_cases": 63,
+    "root_typecheck_tasks": 55,
+    "metrodoros_consolidation_cases": 287,
+    "root_lint": {
+      "passed": false,
+      "local_runtime_and_tools_errors": 837,
+      "warnings": 682,
+      "changed_source_errors": 0,
+      "ignore_rules_changed": false
+    }
+  },
+  "limits": [
+    "Synthetic audio ports do not measure voice quality.",
+    "Previously unmapped turns remain pinned to no profile. New bindings apply to new messages.",
+    "Normal conversation text, identifiers, credentials, screenshots, and raw logs are excluded."
+  ]
+}

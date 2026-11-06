@@ -1,3 +1,5 @@
+param([switch]$SkipBuild)
+
 $ErrorActionPreference = 'Stop'
 $airiRoot = Split-Path -Parent $PSScriptRoot
 $airiNodeDir = Join-Path $airiRoot '.local-tools\node-v26.7.0-win-x64'
@@ -8,6 +10,17 @@ $env:PATH = $airiNodeDir + ';' + $env:PATH
 $env:COREPACK_HOME = Join-Path $airiRoot '.local-tools\corepack'
 Set-Location -LiteralPath $airiRoot
 $env:APP_USER_DATA_PATH = Join-Path $airiRoot '.local-runtime\profile'
+if (-not $SkipBuild) {
+    Write-Host 'Building the current AIRI source...'
+    pnpm -F @proj-airi/i18n build
+    if ($LASTEXITCODE -ne 0) {
+        throw 'The AIRI translations did not build.'
+    }
+    pnpm -F @proj-airi/stage-tamagotchi build
+    if ($LASTEXITCODE -ne 0) {
+        throw 'AIRI did not build. The previous app will not start.'
+    }
+}
 try {
     & (Join-Path $PSScriptRoot 'start-local-irodori.ps1')
     pnpm -F @proj-airi/stage-tamagotchi start

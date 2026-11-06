@@ -1,0 +1,16 @@
+{
+  "encryptedAtRest": true,
+  "electronVersion": "43.4.1",
+  "loadedInSeparateProcess": true,
+  "keyEnvironmentAbsent": true,
+  "serviceStarted": true,
+  "deleted": true,
+  "nodeVersion": "v24.19.0",
+  "keyResolved": true,
+  "scopeRejected": true,
+  "authenticated": true,
+  "receiverAuthenticated": true,
+  "realWindowsEncryption": true,
+  "realLlm": false,
+  "serviceClosedGracefully": true
+}

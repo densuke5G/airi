@@ -14,6 +14,7 @@ import { defineInvoke, defineInvokeHandler } from '@moeru/eventa'
 import { createContext as createElectronContext } from '@moeru/eventa/adapters/electron/main'
 import { isRendererUnavailable } from '@proj-airi/electron-vueuse/main'
 import { BrowserWindow, ipcMain } from 'electron'
+import { withTimeout } from 'es-toolkit/promise'
 import { boolean, number, object, optional, picklist } from 'valibot'
 
 import icon from '../../../../resources/icon.png?asset'
@@ -25,6 +26,7 @@ import {
   electronChatWindowSetPreferences,
   electronChatWindowTakeDraft,
 } from '../../../shared/eventa'
+import { memoryConversationReady, memoryStartConversation } from '../../../shared/eventa/metrodoros'
 import { baseUrl, getElectronMainDirname, load, withHashRoute } from '../../libs/electron/location'
 import { createConfig } from '../../libs/electron/persistence'
 import { createReusableWindow } from '../../libs/electron/window-manager'
@@ -83,6 +85,11 @@ export interface ChatWindowManager {
   onButtonStateChange: (listener: (state: ChatButtonState) => void) => () => void
 }
 
+/** Starts memory use in the selected chat window without changing another window's selection. */
+export interface MemoryConversationWindow {
+  startMemoryConversation: (cardId: string) => Promise<void>
+}
+
 /**
  * Owns both chat windows and the persisted choice between them.
  *
@@ -98,7 +105,7 @@ export function setupChatWindowManager(params: {
   serverChannel: ServerChannel
   mcpStdioManager: McpStdioManager
   i18n: I18n
-}): ChatWindowManager {
+}): ChatWindowManager & MemoryConversationWindow {
   const {
     setup: setupConfig,
     get: getConfigRaw,
@@ -120,6 +127,7 @@ export function setupChatWindowManager(params: {
    * entry in setupDraftHandover, and the entry goes away with the window.
    */
   const draftCollectors = new WeakMap<BrowserWindow, () => Promise<ChatDraftHandover | undefined>>()
+  const conversationStarters = new WeakMap<BrowserWindow, (cardId: string) => Promise<void>>()
 
   async function collectDraft(window: BrowserWindow | undefined) {
     // A closed window or a crashed renderer has no draft left to carry.
@@ -129,6 +137,23 @@ export function setupChatWindowManager(params: {
   }
 
   async function setupChatInvokes(window: BrowserWindow, context: EventaContext, mode: ChatWindowMode) {
+    const ready = Promise.withResolvers<boolean>()
+    defineInvokeHandler(context, memoryConversationReady, () => {
+      ready.resolve(true)
+    })
+    window.once('closed', () => {
+      ready.resolve(false)
+    })
+    const startConversation = defineInvoke(context, memoryStartConversation)
+    conversationStarters.set(window, async (cardId) => {
+      // A new window must register its local session handler before main sends the request.
+      const timeoutMs = 10_000
+      const deadlineAt = Date.now() + timeoutMs
+      const signal = AbortSignal.timeout(timeoutMs)
+      if (!await withTimeout(() => ready.promise, timeoutMs) || isRendererUnavailable(window))
+        throw new Error('memory.conversation_host_unavailable')
+      await startConversation({ cardId, deadlineAt }, { signal })
+    })
     await setupChatWindowElectronInvokes({
       context,
       window,
@@ -265,6 +290,18 @@ export function setupChatWindowManager(params: {
 
   return {
     open: modeSwitch.show,
+    startMemoryConversation: cardId => modeSwitch.run(async () => {
+      const mode = getConfig().mode
+      if (mode === 'floating')
+        await floating.open()
+      else
+        await openLegacy()
+      const window = mode === 'floating' ? floating.getOpenWindow() : legacy.getOpenWindow()
+      const start = window && conversationStarters.get(window)
+      if (!start)
+        throw new Error('memory.conversation_host_unavailable')
+      await start(cardId)
+    }),
     toggle: () => modeSwitch.run(async () => {
       if (getConfig().mode === 'floating')
         await floating.toggle()

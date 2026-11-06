@@ -1,0 +1,67 @@
+{
+  "date": "2026-11-01",
+  "platform": "Windows",
+  "node": "24.19.0",
+  "electron": "43.4.1",
+  "airi_source_parent": "6e8cad389ab112569e875db23f4556312e22e43a",
+  "source_sha256_lf": {
+    "packages/stage-ui/src/components/scenarios/settings/memory/memory-settings-panel.vue": "c645269dc005b306dac18899a6201336498fb911912669f360c13dbccd649641",
+    "packages/stage-ui/src/components/scenarios/settings/memory/memory-settings-connection.browser.test.ts": "ed63522d7e961c6867f5985a925cbbeb142b7f5ba946168aa479e72f04f9205f",
+    "packages/ui/src/components/form/select/select.vue": "caefbc8a2e8c838cd2bb8a4c2dd8c07ed4bfbb106b303632ba0078bc0eaf676a",
+    "packages/i18n/src/locales/en/settings.yaml": "239ba9dac32eacba98ba6f08d808c207393c61e5b031187c71b2c9c135d72ed4",
+    "packages/i18n/src/locales/ja/settings.yaml": "1c03313d748c65972585bfe03b645c37f21d364dfcea78056678507af3275af2"
+  },
+  "before": {
+    "disconnected_controls_regression": "failed",
+    "placeholder_regression": "failed"
+  },
+  "after": {
+    "new_browser_cases_passed": 6,
+    "related_browser_cases_passed": 18,
+    "root_typecheck_tasks_passed": 55,
+    "desktop_build_passed": true,
+    "changed_source_lint_passed": true
+  },
+  "production_observations": {
+    "token_not_saved_before_user_connection": true,
+    "authentication_confirmed_after_user_connection": true,
+    "character_and_world_visible_after_connection": true,
+    "production_credentials_not_read_or_published": true
+  },
+  "limits": [
+    "Automated creation uses substituted external transport and real stores/components.",
+    "Visual fixtures use dedicated profiles and synthetic names.",
+    "The agent did not change production settings or create production characters.",
+    "Root lint fails on local generated profile/tool artifacts."
+  ],
+  "visual_base": "c19b3d90fab1b5988b45990b3a94456f532cf9eb",
+  "visual_cases": [
+    {
+      "case": "ja-light",
+      "locale": "ja",
+      "width": 1200,
+      "theme": "light",
+      "before_creation_disabled": false,
+      "after_creation_disabled": true,
+      "horizontal_overflow": false
+    },
+    {
+      "case": "en-dark",
+      "locale": "en",
+      "width": 1200,
+      "theme": "dark",
+      "before_creation_disabled": false,
+      "after_creation_disabled": true,
+      "horizontal_overflow": false
+    },
+    {
+      "case": "ja-narrow",
+      "locale": "ja",
+      "width": 420,
+      "theme": "light",
+      "before_creation_disabled": false,
+      "after_creation_disabled": true,
+      "horizontal_overflow": false
+    }
+  ]
+}

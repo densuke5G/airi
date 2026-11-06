@@ -1,3 +1,4 @@
+import type { World } from '@metrodoros/contracts/identity'
 import type { Conversation, PreparedRequestContext } from '@proj-airi/core-agent'
 
 /** Non-secret settings shared by the two memory pages. Capabilities come from the host. */
@@ -27,7 +28,7 @@ export interface MemorySnapshot {
   consolidationPending: number | null
   lastSync: number | null
   characters: { id: string, name: string }[]
-  worlds: { id: string, name: string }[]
+  worlds: { id: string, name: World['name'], realm: World['realm'] }[]
   candidate: { candidateId: string, cardId: string, text: string, digest: string } | null
   selection: { cardId: string, airiSessionId: string, modelKey: string | null } | null
   metrics: Record<string, number>
@@ -39,7 +40,7 @@ export type MemoryCommand
     | { kind: 'save', profile: MemoryProfile }
     | { kind: 'connect', token: string }
     | { kind: 'new-conversation', airiSessionId: string }
-    | { kind: 'create-character', name: string }
+    | { kind: 'create-character', name: string, firstPerson: string }
     | { kind: 'create-world', name: string }
     | { kind: 'bind-card', cardId: string, characterId: string, worldId: string }
     | { kind: 'propose-persona', card: { cardId: string, name?: string, description?: string, personality?: string, scenario?: string } }

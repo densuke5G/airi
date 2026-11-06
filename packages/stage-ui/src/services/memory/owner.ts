@@ -3,8 +3,9 @@ import type { JobListResponse } from '@metrodoros/contracts'
 import type { Conversation } from '@proj-airi/core-agent'
 
 import type { MemoryCommand, MemoryDeliveryReport, MemoryPrepared, MemoryPrepareInput, MemoryProfile, MemorySnapshot, MemorySpeechInput, MemoryStopRequest } from './contracts'
+import type { DesktopCredentialIdentity, DesktopStoredCredential } from './owner-desktop-credentials'
 
-import { createMetrodorosApi, failureCode, hash53, MemoryBridge, parseSettings, PersonaMigration, TokenHolder } from '@metrodoros/airi-adapter'
+import { backoffMs, classifyFailure, createMetrodorosApi, failureCode, hash53, MemoryBridge, parseSettings, PersonaMigration, TokenHolder } from '@metrodoros/airi-adapter'
 import { MetrodorosClient, ShortTermClient } from '@metrodoros/client'
 import { IdentityClient } from '@metrodoros/client/identity'
 import { jobKinds, jobStates } from '@metrodoros/contracts'
@@ -35,12 +36,14 @@ export interface MemoryOwnerOptions {
   loadPrivateSessions: () => Promise<string[]>
   rememberPrivateSession: (sessionId: string) => Promise<void>
   storage: (namespace: string) => Promise<StoragePort>
+  onManualConnection?: (credential: DesktopStoredCredential) => Promise<void>
   fetch?: typeof globalThis.fetch
 }
 
 /**
  * One owner controls authentication, writer leases, notification sync, and outbox dispatch.
  * Config commands serialize. Notification sync and outbox sends have separate task loops.
+ * Transient notification failures pause output and retry the same authenticated bridge with backoff.
  * A lost host invalidates the lease before cancellation and never acknowledges forgotten output.
  */
 export class MemoryOwner {
@@ -60,6 +63,9 @@ export class MemoryOwner {
   private readonly pendingDisplays = new Set<string>()
   private tasks: AbortController | undefined
   private commandTail: Promise<unknown> = Promise.resolve()
+  private expectedIdentity: DesktopCredentialIdentity | null = null
+  private manualCredentialPending = false
+  private connectionCurrent: (() => boolean) | undefined
   private readonly migration: PersonaMigration
   private readonly initialized: Promise<void>
 
@@ -198,7 +204,10 @@ export class MemoryOwner {
     }
   }
 
-  async command(command: MemoryCommand): Promise<MemorySnapshot> {
+  async command(
+    command: MemoryCommand,
+    connectionContext?: { expectedIdentity?: DesktopCredentialIdentity, isCurrent?: () => boolean },
+  ): Promise<MemorySnapshot> {
     const run = this.commandTail.then(async () => {
       await this.initialized
       if (this.initializationFailed && command.kind !== 'snapshot')
@@ -209,6 +218,11 @@ export class MemoryOwner {
           const profile = this.checkedProfile(command.profile)
           const changedEndpoint = profile.endpoint !== this.snapshot.profile.endpoint
           await this.stopConnection(changedEndpoint)
+          if (changedEndpoint) {
+            this.expectedIdentity = null
+            this.connectionCurrent = undefined
+            this.manualCredentialPending = false
+          }
           this.snapshot.profile = profile
           await this.options.saveProfile(profile)
           if (this.token.present && profile.enabled)
@@ -219,11 +233,16 @@ export class MemoryOwner {
           await this.stopConnection(true)
           if (!command.token.trim())
             throw new Error('memory.token_required')
+          this.expectedIdentity = connectionContext?.expectedIdentity ?? null
+          this.connectionCurrent = connectionContext?.isCurrent
+          this.manualCredentialPending = connectionContext?.expectedIdentity === undefined
           this.token.set(command.token)
           await this.connect()
           break
         case 'disconnect':
           await this.stopConnection(true)
+          this.expectedIdentity = null
+          this.manualCredentialPending = false
           break
         case 'refresh':
           if (this.bridge && this.snapshot.connected) {
@@ -239,7 +258,7 @@ export class MemoryOwner {
         case 'create-character':
           await this.requireIdentity().createCharacter({ display_name: command.name, profile: {
             name: command.name,
-            first_person: '',
+            first_person: command.firstPerson,
             speaking_style: '',
             background: '',
             values: [],
@@ -296,6 +315,8 @@ export class MemoryOwner {
     })
     this.commandTail = run.catch(() => undefined)
     return run.catch(async (error: unknown) => {
+      if (command.kind === 'connect' && !this.snapshot.connected)
+        this.manualCredentialPending = false
       const ownReason = error instanceof Error && /^memory\.[a-z_]{1,64}$/.test(error.message)
         ? error.message.slice('memory.'.length)
         : failureCode(error).toLowerCase()
@@ -317,7 +338,7 @@ export class MemoryOwner {
     const identity = this.requireIdentity()
     const [characters, worlds] = await Promise.all([identity.listCharacters({ state: 'active', limit: 100 }), identity.listWorlds({ limit: 100 })])
     this.snapshot.characters = characters.items.map(item => ({ id: item.character_id, name: item.display_name ?? item.character_id }))
-    this.snapshot.worlds = worlds.items.filter(item => item.state === 'active').map(item => ({ id: item.world_id, name: item.name ?? item.world_id }))
+    this.snapshot.worlds = worlds.items.filter(item => item.state === 'active').map(item => ({ id: item.world_id, name: item.name, realm: item.realm }))
     await this.loadConsolidationCount()
   }
 
@@ -396,13 +417,25 @@ export class MemoryOwner {
     const selectionGeneration = this.selectionGeneration
     const conversationActor = this.conversationHost.actor
     const speechActor = this.speechHost.actor
-    const selectionCurrent = () => this.generation === ownerGeneration && this.selectionGeneration === selectionGeneration && this.conversationHost?.actor === conversationActor && this.speechHost?.actor === speechActor
+    const selectionCurrent = () => this.generation === ownerGeneration && this.selectionGeneration === selectionGeneration && this.conversationHost?.actor === conversationActor && this.speechHost?.actor === speechActor && (this.connectionCurrent?.() ?? true)
     const api = createMetrodorosApi({ endpoint: this.snapshot.profile.endpoint, token: this.token.reveal(), ...(this.options.fetch ? { fetch: this.options.fetch } : {}) })
     const client = new MetrodorosClient({ baseUrl: this.snapshot.profile.endpoint, token: this.token.reveal(), ...(this.options.fetch ? { fetch: this.options.fetch } : {}) })
     const identity = await new ShortTermClient(client).getConnection({ budgetMs: 1000 })
+    if (this.connectionCurrent && !this.connectionCurrent())
+      throw new Error('memory.owner_lost')
+    if (this.expectedIdentity && (
+      this.expectedIdentity.endpoint !== this.snapshot.profile.endpoint
+      || this.expectedIdentity.userId !== identity.user_id
+      || this.expectedIdentity.clientId !== identity.client_id
+      || this.expectedIdentity.storeGeneration !== identity.store_generation
+    )) {
+      throw new Error('memory.saved_identity_mismatch')
+    }
     const capabilities = await api.getCapabilities?.({ budgetMs: 1000 })
     if (!capabilities?.conversation_profile || !capabilities.output_gate || !capabilities.change_notifications)
       throw new Error('memory.capability_missing')
+    if (!selectionCurrent())
+      throw new Error('memory.owner_lost')
     const namespace = hash53(JSON.stringify([this.options.installationId, this.snapshot.profile.endpoint, identity.user_id, identity.client_id, identity.store_generation]))
     const storage = await this.options.storage(namespace)
     if (!selectionCurrent())
@@ -466,12 +499,24 @@ export class MemoryOwner {
     if (!bridge.synchronized)
       throw new Error('memory.sync_required')
     this.snapshot.connected = true
+    this.snapshot.reason = null
     this.snapshot.lastSync = Date.now()
     this.tasks = new AbortController()
     const signal = this.tasks.signal
     void this.notificationLoop(bridge, signal)
     void this.outboxLoop(bridge, signal)
     await this.loadMetadata()
+    if (this.manualCredentialPending && this.options.onManualConnection) {
+      this.manualCredentialPending = false
+      await this.options.onManualConnection({
+        installationId: this.options.installationId,
+        endpoint: this.snapshot.profile.endpoint,
+        userId: identity.user_id,
+        clientId: identity.client_id,
+        storeGeneration: identity.store_generation,
+        token: this.token.reveal(),
+      }).catch(() => undefined)
+    }
   }
 
   private appInstructionIds = new Set<string>()
@@ -492,6 +537,7 @@ export class MemoryOwner {
   }
 
   private async notificationLoop(bridge: MemoryBridge, signal: AbortSignal): Promise<void> {
+    let attempt = 0
     while (!signal.aborted) {
       await this.delay(signal, 500)
       if (signal.aborted)
@@ -500,20 +546,43 @@ export class MemoryOwner {
         await bridge.syncNotifications(signal)
         if (signal.aborted || this.bridge !== bridge)
           return
+        attempt = 0
+        this.snapshot.connected = true
         this.snapshot.lastSync = Date.now()
         await this.publish()
       }
-      catch {
+      catch (cause) {
         if (signal.aborted || this.bridge !== bridge)
           return
-        await bridge.notificationDisconnected().catch(() => undefined)
+        let stopped = true
+        try {
+          await bridge.notificationDisconnected()
+        }
+        catch {
+          stopped = false
+        }
         if (signal.aborted || this.bridge !== bridge)
           return
+        if (!stopped)
+          this.suspended = true
         this.snapshot.connected = false
         this.snapshot.reason = 'sync_required'
-        this.tasks?.abort()
+        const failure = classifyFailure(cause)
+        // Forgetting can invalidate a page before its acknowledgment. Restart from the last acknowledged checkpoint.
+        const outdatedCheckpoint = failure.code === 'CONTEXT_INVALIDATED'
+          && typeof cause === 'object' && cause !== null && 'status' in cause && cause.status === 409
+        const recover = stopped && !this.suspended && this.snapshot.profile.enabled
+          && bridge.flusher.halted === undefined && (failure.kind === 'retry' || outdatedCheckpoint)
+          && !['ABORTED', 'STOP_INCOMPLETE', 'UNAUTHENTICATED', 'FORBIDDEN'].includes(failure.code)
+          && (!(cause instanceof Error) || !cause.message.startsWith('memory.'))
+        // Resume sends only after this bridge applies and acknowledges a fresh notification checkpoint.
+        if (!recover)
+          this.tasks?.abort()
         await this.publish()
-        return
+        if (!recover)
+          return
+        attempt += 1
+        await this.delay(signal, backoffMs(attempt))
       }
     }
   }
@@ -576,6 +645,17 @@ export class MemoryOwner {
       throw new Error('memory.owner_lost')
     if (!Number.isFinite(deadlineAt) || deadlineAt <= Date.now() || deadlineAt > Date.now() + 1000)
       throw new Error('memory.deadline_exceeded')
+    const userTurns = input.conversation.turns.filter(turn => turn.type === 'user')
+    if (this.snapshot.profile.enabled && !this.usedSessions.has(input.sessionId) && userTurns.length === 1 && userTurns[0]?.id === input.userMessageId) {
+      // The runtime commits the user message before preparation. Persist privacy before any memory attempt, including a failed connection.
+      try {
+        await this.options.rememberPrivateSession(input.sessionId)
+        this.usedSessions.add(input.sessionId)
+      }
+      catch {
+        return { mode: 'blocked', reason: 'session_storage_failed', ownerGeneration: this.generation, selectionGeneration: this.selectionGeneration, expiresAt: deadlineAt }
+      }
+    }
     const bridge = this.bridge
     if (!bridge) {
       if (this.snapshot.profile.enabled)
@@ -586,16 +666,25 @@ export class MemoryOwner {
         return { mode: 'blocked', reason: 'new_session_required', ownerGeneration: this.generation, selectionGeneration: this.selectionGeneration, expiresAt: deadlineAt }
       return { mode: 'disabled', conversation: input.conversation, ownerGeneration: this.generation, selectionGeneration: this.selectionGeneration, expiresAt: deadlineAt }
     }
-    if (!this.usedSessions.has(input.sessionId) && input.conversation.turns.filter(turn => turn.type === 'user').length > 1)
+    if (!this.usedSessions.has(input.sessionId) && userTurns.length > 1)
       return { mode: 'blocked', reason: 'new_session_required', ownerGeneration: this.generation, selectionGeneration: this.selectionGeneration, expiresAt: deadlineAt }
     if (this.turns.has(referenceId))
       throw new Error('memory.reference_reused')
     const selection = this.snapshot.selection
     const modelKey = JSON.stringify([input.providerId, input.model])
-    if (!selection || selection.cardId !== input.cardId || selection.airiSessionId !== input.sessionId || selection.modelKey !== modelKey) {
-      this.selectionGeneration += 1
-      await bridge.selectCard(input.cardId, { airiSessionId: input.sessionId })
-      this.snapshot.selection = { cardId: input.cardId, airiSessionId: input.sessionId, modelKey }
+    try {
+      if (!selection || selection.cardId !== input.cardId || selection.airiSessionId !== input.sessionId || selection.modelKey !== modelKey) {
+        this.selectionGeneration += 1
+        await bridge.selectCard(input.cardId, { airiSessionId: input.sessionId })
+        this.snapshot.selection = { cardId: input.cardId, airiSessionId: input.sessionId, modelKey }
+      }
+      // Background synchronization can leave session creation pending. Surface its sanitized failure before preparing a turn.
+      if (bridge.synchronized)
+        await bridge.ensureSession(input.sessionId)
+    }
+    catch (cause) {
+      await this.publish()
+      return { mode: 'blocked', reason: failureCode(cause).toLowerCase(), ownerGeneration: this.generation, selectionGeneration: this.selectionGeneration, expiresAt: deadlineAt }
     }
     if (Date.now() >= deadlineAt || this.pendingCancels.delete(`${actor}:${referenceId}`))
       return { mode: 'blocked', reason: 'deadline_exceeded', ownerGeneration: this.generation, selectionGeneration: this.selectionGeneration, expiresAt: deadlineAt }
@@ -617,7 +706,7 @@ export class MemoryOwner {
     const timer = setTimeout(() => controller.abort(), Math.max(1, deadlineAt - Date.now()))
     const started = performance.now()
     try {
-      const result = await bridge.prepareRequestContext({
+      const request = {
         airiSessionId: input.sessionId,
         userMessageId: input.userMessageId,
         attemptId: input.attemptId,
@@ -625,7 +714,14 @@ export class MemoryOwner {
         inputKind: input.inputKind,
         modelKey,
         signal: controller.signal,
-      })
+      }
+      let result = await bridge.prepareRequestContext(request)
+      // A rejected context can leave no confirmed persona cache. Obtain a fresh server packet once,
+      // under the original abort timer and identities. Never send with the rejected packet or an AIRI fallback.
+      if (result.mode === 'blocked' && result.reason === 'persona_unconfirmed'
+        && !controller.signal.aborted && this.current(held) && Date.now() < deadlineAt) {
+        result = await bridge.prepareRequestContext(request)
+      }
       if (controller.signal.aborted || !this.current(held)) {
         if ('turn' in result)
           await bridge.cancelTurn(result.turn)
@@ -655,8 +751,10 @@ export class MemoryOwner {
             await this.publish()
           })
         }, Math.max(1, held.expiresAt - Date.now()))
-        await this.options.rememberPrivateSession(input.sessionId)
-        this.usedSessions.add(input.sessionId)
+        if (!this.usedSessions.has(input.sessionId)) {
+          await this.options.rememberPrivateSession(input.sessionId)
+          this.usedSessions.add(input.sessionId)
+        }
       }
       return {
         mode: result.mode,

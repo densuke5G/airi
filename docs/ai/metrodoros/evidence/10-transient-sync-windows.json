@@ -1,0 +1,95 @@
+{
+  "schema": "10-transient-sync/windows/v1",
+  "source_parent": "7373ef041bfbab18724688bb731f3670f0412bde",
+  "observed_symptoms": {
+    "chat_error": "memory.sync_required",
+    "event_delivery_http_status": 504,
+    "notification_http_status": 504,
+    "reply_generation_completed": true,
+    "speech_work_canceled": true
+  },
+  "cause": "The owner aborted both background loops after one notification failure. Recovery required manual refresh.",
+  "recovery_policy": {
+    "same_authenticated_bridge": true,
+    "bounded_backoff": true,
+    "resume_after_checkpoint_ack_only": true,
+    "interrupted_output_replayed": false,
+    "context_invalidated_ack_reloads_last_checkpoint": true,
+    "auth_store_or_stop_failure_requires_explicit_recovery": true
+  },
+  "source_sha256": {
+    "packages/stage-ui/src/services/memory/owner.ts": "58fe563e8459ac6d530f5b63530041526874e7c35b4f5d7f7e91c0525732f3da",
+    "packages/stage-ui/src/services/memory/owner-transient-sync-metrodoros.test.ts": "3c2c3ee237e3ca7c19f1be3e7d12df74c777e346c6602360ab2a6b9057a71d75",
+    "apps/stage-tamagotchi/scripts/metrodoros-transient-sync-acceptance.mjs": "75cd9f386463255384f16988e27f9f68a4efe5404dc72e076f0ec6d35cd39e35"
+  },
+  "regression": {
+    "new_node_cases_passed": 15,
+    "related_shared_cases_passed": 64,
+    "desktop_cases_passed": 63,
+    "existing_tests_modified": false,
+    "ack_race_reproduced_before_fix": true
+  },
+  "real_service_probe": {
+    "realHttp": true,
+    "realSqlite": true,
+    "realAiriOwner": true,
+    "realFileStorage": true,
+    "syntheticData": true,
+    "realAudio": false,
+    "checks": {
+      "established_memory_turn": true,
+      "event_timeout_retains_pending_record": true,
+      "notification_timeout_injected": true,
+      "output_stopped_before_recovery": true,
+      "provider_gate_closed_during_outage": true,
+      "recovered_without_login_or_refresh": true,
+      "old_output_not_replayed": true,
+      "same_persisted_event_acknowledged_after_recovery": true,
+      "same_conversation_continues": true,
+      "server_session_preserved": true
+    },
+    "passed": true
+  },
+  "unchanged_host_acceptance": {
+    "6": {
+      "passed": true,
+      "checks": 25,
+      "gaps": []
+    },
+    "7": {
+      "passed": true,
+      "checks": 25,
+      "gaps": []
+    },
+    "8": {
+      "passed": true,
+      "checks": 25,
+      "gaps": []
+    }
+  },
+  "static": {
+    "root_typecheck_tasks_passed": 55,
+    "desktop_build": "passed",
+    "changed_eslint": "passed",
+    "root_lint": {
+      "errors": 825,
+      "warnings": 682,
+      "error_scope": [
+        ".local-runtime",
+        ".local-tools"
+      ],
+      "ignore_rules_changed": false
+    }
+  },
+  "privacy": {
+    "normal_profile_logs_reviewed_locally": true,
+    "normal_conversation_text_included": false,
+    "normal_credentials_read": false,
+    "normal_profile_screenshots_included": false,
+    "normal_service_stopped": false
+  },
+  "limits": [
+    "Synthetic audio ports verify interruption and delivery control, not live voice quality.",
+    "A real synchronization outage can still interrupt current output. It is not replayed automatically."
+  ]
+}
