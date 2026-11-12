@@ -61,11 +61,25 @@ const useChatSessionSelectionStore = defineStore('chat-session-selection', () =>
   return { activeSessionId }
 })
 
+/** Shares only microphone routing, so navigation never proposes an older transcript snapshot. */
+const useChatVoiceSelectionStore = defineStore('chat-voice-selection', () => {
+  const sessionIds = ref<Record<string, string>>({})
+
+  async function select(userId: string, characterId: string, sessionId: string) {
+    sessionIds.value[JSON.stringify([userId, characterId])] = sessionId
+  }
+
+  return { sessionIds, select }
+}, {
+  synced: { state: true, actions: ['select'] },
+})
+
 export const useChatSessionStore = defineStore('chat-session', () => {
   const { userId, token: authToken } = storeToRefs(useAuthStore())
   const { activeCardId, systemPrompt } = storeToRefs(useAiriCardStore())
 
   const chatSessionSelection = useChatSessionSelectionStore()
+  const chatVoiceSelection = useChatVoiceSelectionStore()
   // The selected conversation belongs to one window. Expose it through the
   // existing chat-session API as a computed property so synchronized session
   // data never makes another window navigate to the same conversation.
@@ -78,6 +92,13 @@ export const useChatSessionStore = defineStore('chat-session', () => {
   const sessionGenerations = ref<Record<string, number>>({})
   /** Canonical session index replicated so each window can derive its local selection. */
   const index = ref<ChatSessionsIndex | null>(null)
+  const voiceSessionId = computed(() => {
+    const selected = chatVoiceSelection.sessionIds[JSON.stringify([getCurrentUserId(), getCurrentCharacterId()])]
+    const meta = selected ? sessionMetas.value[selected] : undefined
+    return meta?.userId === getCurrentUserId() && meta.characterId === getCurrentCharacterId()
+      ? selected
+      : activeSessionId.value
+  })
 
   const ready = ref(false)
   const isReady = computed(() => ready.value)
@@ -1398,14 +1419,22 @@ export const useChatSessionStore = defineStore('chat-session', () => {
     },
   })
 
-  /** Selects and hydrates one conversation only in the current window. */
-  async function setActiveSession(sessionId: string) {
+  /** Explicit navigation routes voice by default. Automatic repairs keep the existing voice destination. */
+  async function setActiveSession(sessionId: string, options?: {
+    /** Route microphone input to this explicit selection. @default true */
+    routeVoice?: boolean
+  }) {
     activeSessionId.value = sessionId
 
     if (ready.value)
       await useChatSessionStore().loadSession(sessionId)
     else if (!hasKnownSession(sessionId))
       ensureSession(sessionId)
+
+    // A slower hydration must not replace a newer explicit selection.
+    const meta = sessionMetas.value[sessionId]
+    if (options?.routeVoice !== false && activeSessionId.value === sessionId && meta?.userId === getCurrentUserId())
+      await chatVoiceSelection.select(meta.userId, meta.characterId, sessionId)
   }
 
   function applyRemoteSnapshot(snapshot: {
@@ -1604,7 +1633,7 @@ export const useChatSessionStore = defineStore('chat-session', () => {
       ?.sessionId
 
     if (fallbackSessionId) {
-      void setActiveSession(fallbackSessionId)
+      void setActiveSession(fallbackSessionId, { routeVoice: false })
     }
     // If no fallback exists yet, wait for the synchronized delete action.
     // Its elected leader creates the single replacement; creating here in
@@ -1648,6 +1677,7 @@ export const useChatSessionStore = defineStore('chat-session', () => {
     dispose,
 
     activeSessionId,
+    voiceSessionId,
     messages,
 
     setActiveSession,

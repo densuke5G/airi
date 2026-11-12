@@ -69,9 +69,9 @@ packages:
   - '!**/dist/**'
 
 overrides:
-  '@metrodoros/airi-adapter': file:./vendor/metrodoros/metrodoros-airi-adapter-0.1.1-af1bca2d7c05.tgz
-  '@metrodoros/client': file:./vendor/metrodoros/metrodoros-client-0.1.1-7d45de327680.tgz
-  '@metrodoros/contracts': file:./vendor/metrodoros/metrodoros-contracts-0.1.1-9ef7b25220aa.tgz
+  '@metrodoros/airi-adapter': file:./vendor/metrodoros/metrodoros-airi-adapter-0.1.1-39a5ac968cc3.tgz
+  '@metrodoros/client': file:./vendor/metrodoros/metrodoros-client-0.1.1-230839d3746a.tgz
+  '@metrodoros/contracts': file:./vendor/metrodoros/metrodoros-contracts-0.1.1-4ea7c0970af6.tgz
   '@types/hast': 'catalog:'
   array-flatten: npm:@nolyfill/array-flatten@^1.0.44
   axios: npm:feaxios@^0.0.23

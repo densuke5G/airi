@@ -84,6 +84,18 @@ Disable these options to send images directly to a chat model that supports them
 Without a configured vision model, images also go directly to the chat model.
 Use this flow for chat attachments and tool images, not periodic screen capture.
 
+Periodic screen capture publishes descriptions through runtime context. The memory
+adapter preserves the current request's observations as quoted reference data.
+It excludes these observations from recall queries, user-input evidence, and replayed history.
+
+## Desktop microphone routing
+
+Conversation navigation stays local to each window. Explicit selection also sets
+a shared microphone destination for the current user and character. The desktop
+microphone sends to that destination, including after a chat window creates a conversation.
+A separate synchronized store owns this routing so selection never replaces transcript snapshots.
+Automatic selection repairs do not change the microphone destination.
+
 ## Character-card module settings
 
 The card store owns three distinct states:
