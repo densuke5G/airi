@@ -181,6 +181,9 @@ const STORED_TOOL_IMAGE = 'A tool image was left out of the history.'
 /** Stands in for an earlier image whose read failed with the current vision selection. */
 const UNREADABLE_EARLIER_IMAGE = 'The user attached an image here earlier. The vision model failed to read it.'
 
+/** Keeps an unsupported historical attachment from blocking a later private text request. */
+const PRIVATE_EARLIER_IMAGE = 'The user attached an image earlier. It is unavailable in this memory-enabled request.'
+
 export const useChatStore = defineStore('chat', () => {
   const { t } = useI18n()
   const runtimePrompt = useAiriRuntimePrompt()
@@ -309,11 +312,21 @@ export const useChatStore = defineStore('chat', () => {
     const hasImages = context.turns.some(turn => turn.type === 'user' && turn.content.some(part => part.type === 'image'))
 
     if (hasImages) {
-      if (options?.privateContext && chatVision.readsAttachedImages(model))
-        throw new Error('memory.auxiliary_model_unsupported')
-      if (chatVision.readsAttachedImages(model)) {
+      const currentTurn = context.turns.findLast(turn => turn.type === 'user')
+      const attachedImagesUseVision = chatVision.readsAttachedImages(model)
+      if (options?.privateContext && attachedImagesUseVision) {
+        if (currentTurn?.content.some(part => part.type === 'image'))
+          throw new Error(t('stage.chat.images.memory-unsupported'))
+        // Only retained history reaches this projection. Cached descriptions stay
+        // inside the bound memory request and never trigger another vision request.
+        providerContext = await describeChatImages(providerContext, async (_url, _question, turnId, imageIndex) => {
+          const sessionId = options.requestCorrelation?.conversationId
+          return (sessionId ? getImageDescription(sessionId, turnId, imageIndex) : undefined) ?? PRIVATE_EARLIER_IMAGE
+        }, t('stage.chat.images.no-description'))
+      }
+      else if (attachedImagesUseVision) {
         const { runVisionInference } = useVisionInference()
-        const currentTurnId = context.turns.findLast(turn => turn.type === 'user')?.id
+        const currentTurnId = currentTurn?.id
         providerContext = await describeChatImages(providerContext, async (imageDataUrl, question, turnId, imageIndex) => {
           const sessionId = options?.requestCorrelation?.conversationId
           const cachedDescription = sessionId
