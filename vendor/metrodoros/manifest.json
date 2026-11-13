@@ -1,6 +1,6 @@
 {
   "version": "0.1.1",
-  "metrodorosCommit": "7e6a915b7d166bab8804236198fc2e66ac99f076",
+  "metrodorosCommit": "8fdb0dfcb6121df12d16f02f75679836bf152cf2",
   "workingTreeClean": true,
   "packages": [
     {
@@ -25,10 +25,10 @@
       "name": "@metrodoros/airi-adapter",
       "version": "0.1.1",
       "file": "tarballs/metrodoros-airi-adapter-0.1.1.tgz",
-      "bytes": 42503,
-      "sha256": "39a5ac968cc3f4e4f60ad64091fec2b50b50476a91a913867e6834497d07524e",
-      "integrity": "sha512-8SfMJQHT2KTMMZ7JUO3wmt6ed3g1pBp6WfDWANb9LB3Pn/70iULLGEOife+H7HOpWIoix6mSGge9SV8XLo5L3A==",
-      "vendorFile": "metrodoros-airi-adapter-0.1.1-39a5ac968cc3.tgz"
+      "bytes": 42920,
+      "sha256": "d873a7cf855c10306026599a6c36a0a8b1f423ee8b00da73f36685f0e1228f3b",
+      "integrity": "sha512-7uu0T1PBJBV56uwGhxysZzZBRoQRhq0Xlu7euKp9RUMGNyj5pKxRKwzym2mQUmhcDWfMVmnqQ5hhKpJ8n/OtCQ==",
+      "vendorFile": "metrodoros-airi-adapter-0.1.1-d873a7cf855c.tgz"
     }
   ]
 }

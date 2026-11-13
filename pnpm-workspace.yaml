@@ -69,7 +69,7 @@ packages:
   - '!**/dist/**'
 
 overrides:
-  '@metrodoros/airi-adapter': file:./vendor/metrodoros/metrodoros-airi-adapter-0.1.1-39a5ac968cc3.tgz
+  '@metrodoros/airi-adapter': file:./vendor/metrodoros/metrodoros-airi-adapter-0.1.1-d873a7cf855c.tgz
   '@metrodoros/client': file:./vendor/metrodoros/metrodoros-client-0.1.1-230839d3746a.tgz
   '@metrodoros/contracts': file:./vendor/metrodoros/metrodoros-contracts-0.1.1-4ea7c0970af6.tgz
   '@types/hast': 'catalog:'

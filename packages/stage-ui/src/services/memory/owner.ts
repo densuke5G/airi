@@ -713,6 +713,7 @@ export class MemoryOwner {
         conversation: input.conversation,
         inputKind: input.inputKind,
         modelKey,
+        deadlineAt,
         signal: controller.signal,
       }
       let result = await bridge.prepareRequestContext(request)

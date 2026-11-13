@@ -21,7 +21,7 @@ afterEach(async () => {
 async function fixture() {
   vi.useFakeTimers()
   const storage = new MemoryStorage()
-  const control = { conflicts: 1, persona: 'Confirmed persona', nextPersona: 'Confirmed persona', expire: false, cancel: false, persistenceMs: 0 }
+  const control = { conflicts: 1, persona: 'Confirmed persona', nextPersona: 'Confirmed persona', expire: false, cancel: false, persistenceMs: 0, registrationMs: 0 }
   const recalls: Record<string, unknown>[] = []
   const registrations: Record<string, unknown>[] = []
   const scope = { scope_id: scopeId, revision: 1, forget_epoch: 0, access_revision: 0 }
@@ -70,6 +70,8 @@ async function fixture() {
       return Response.json(packet)
     }
     if (route === '/v1/outputs') {
+      if (control.registrationMs)
+        await new Promise(resolve => setTimeout(resolve, control.registrationMs))
       registrations.push(body)
       if (control.conflicts-- > 0) {
         control.persona = control.nextPersona
@@ -189,5 +191,29 @@ describe('host preparation budget', () => {
     const r = await fixture()
     await expect(r.prepare(5001)).rejects.toThrow('memory.deadline_exceeded')
     expect(r.recalls).toHaveLength(0)
+  })
+})
+
+describe('sDK preparation within the host deadline', () => {
+  // ROOT CAUSE:
+  // The SDK stopped registration after one second despite a valid host deadline. Both layers now retain the original deadline.
+  it('accepts registration after the one-second performance target', async () => {
+    const r = await fixture()
+    r.control.conflicts = 0
+    r.control.registrationMs = 1200
+    const result = r.prepare(5000)
+    await vi.advanceTimersByTimeAsync(1200)
+    expect((await result).mode).toBe('memory')
+    expect((await r.owner.gate('conversation', 'ref', 'initial')).allow).toBe(true)
+  })
+
+  it.each([{ budgetMs: 3000, mode: 'memory' }, { budgetMs: 2000, mode: 'blocked' }])('keeps the original deadline across a slow persona retry: $budgetMs ms', async ({ budgetMs, mode }) => {
+    const r = await fixture()
+    r.control.registrationMs = 1200
+    const result = r.prepare(budgetMs)
+    await vi.advanceTimersByTimeAsync(2400)
+    expect((await result).mode).toBe(mode)
+    expect(r.registrations).toHaveLength(2)
+    expect((await r.owner.gate('conversation', 'ref', 'initial')).allow).toBe(mode === 'memory')
   })
 })

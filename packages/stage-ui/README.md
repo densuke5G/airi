@@ -243,9 +243,9 @@ See [the integration decision](../../docs/ai/adr/zeno-integration.md).
 
 ## Memory preparation timing
 
-The SDK retains its one-second preparation budget, bounded recall, and existing degradation rules.
+The SDK shares the original host deadline for preparation. Recall retains its separate bounded budget and existing degradation rules.
 The host allows five seconds for setup, IPC, storage, and SDK completion together.
 Crossing one second alone does not cancel a chat turn.
-The client and owner retain the original host deadline across retries.
+The client, owner, and SDK retain the original host deadline across retries.
 Server output deadlines, context validity, cancellation, and provider gates still apply.
 An unresponsive host fails after five seconds. It never sends late context or bypasses private memory policy.
