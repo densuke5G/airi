@@ -40,6 +40,7 @@ chat:
     total-too-large: 'All attached images together must be 3 MB or smaller.'
     read-failed: 'Could not read this image. Try again.'
     no-description: 'The vision model returned no image description. Check Settings → Modules → Vision and try again.'
+    memory-unsupported: 'Memory chat cannot send attached images to a separate vision model. For an image-capable chat model, turn off “Use the vision model for chat images” in Vision settings. Screen-sharing descriptions and text chat remain available.'
     reading: 'Reading images…'
     description: 'Image attachment'
   actions:

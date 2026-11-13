@@ -1,4 +1,6 @@
 chat:
+  images:
+    memory-unsupported: 'メモリ有効時は、添付画像を別のVisionモデルで読むことはできません。画像を直接読めるチャットモデルなら、Vision設定の「Use the vision model for chat images」をOFFにしてください。画面共有の解析結果と文字のみの会話は利用できます。'
   actions:
     retry: 再試行
   message:
