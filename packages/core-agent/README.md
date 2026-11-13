@@ -77,3 +77,11 @@ The runtime stores at most one known ID as a `ChatSlicesSticker` per reply.
 Unknown IDs are ignored. Sticker markers never reach literal speech or special-token hooks.
 Other special markers retain their existing behavior. A reply can contain text, a sticker, or both.
 The host renderer resolves the ID to local artwork. The core has no image assets, URLs, storage, or model dependencies.
+
+
+## Request preparation timing
+
+`requestPreparationTimeoutMs` limits host preparation before provider calls. The default is 5000 milliseconds.
+This limit includes host setup, storage, and transport overhead. It is separate from a memory recall performance target.
+The runtime passes one absolute deadline to the host and aborts preparation when that deadline expires.
+User cancellation also aborts preparation. Late results never start provider generation.

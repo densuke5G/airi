@@ -4,7 +4,7 @@ import type { Message } from '@xsai/shared-chat'
 import type { Conversation } from '../messages/types'
 import type { ChatHistoryItem, ContextMessage, StreamingAssistantMessage } from '../types/chat'
 import type { StreamEvent, StreamOptions } from '../types/llm'
-import type { ChatOrchestratorSessionPort } from './chat-orchestrator-runtime'
+import type { ChatOrchestratorRuntimeDeps, ChatOrchestratorSessionPort } from './chat-orchestrator-runtime'
 
 import { ContextUpdateStrategy } from '@proj-airi/server-shared/types'
 import { describe, expect, it, vi } from 'vitest'
@@ -17,7 +17,7 @@ const provider: GenerationProvider = {
   generation: model => ({ protocol: 'chat-completions', config: { model, baseURL: 'https://example.com/' } }),
 }
 
-function createHarness(getActiveProvider = () => 'mock-provider') {
+function createHarness(getActiveProvider = () => 'mock-provider', preparation: Pick<ChatOrchestratorRuntimeDeps, 'prepareRequestContext' | 'requestPreparationTimeoutMs'> = {}) {
   const sessionMessages: Record<string, ChatHistoryItem[]> = {
     'session-1': [
       {
@@ -71,6 +71,7 @@ function createHarness(getActiveProvider = () => 'mock-provider') {
   })
 
   const runtime = createChatOrchestratorRuntime({
+    ...preparation,
     session: {
       commitUserMessage,
       ensureSession: (sessionId) => {
@@ -1688,5 +1689,60 @@ it('isolates sticker catalogs, providers, and supplements across concurrent and 
   expect(harness.sessionMessages['session-2']!.at(-1)).toMatchObject({
     slices: [{ type: 'text', text: 'Reply ' }, { type: 'sticker', stickerId: 'dog' }],
     categorization: { speech: 'Reply ' },
+  })
+})
+
+describe('request preparation deadlines', () => {
+  it('waits for valid voice context beyond the one-second performance target', async () => {
+    vi.useFakeTimers()
+    try {
+      const prepare = vi.fn<NonNullable<ChatOrchestratorRuntimeDeps['prepareRequestContext']>>(async (input) => {
+        await new Promise(resolve => setTimeout(resolve, 1200))
+        return { conversation: input.conversation }
+      })
+      const harness = createHarness(undefined, { prepareRequestContext: prepare })
+      harness.contextSnapshot['vision:screen'] = [{
+        id: 'screen',
+        contextId: 'vision:screen',
+        strategy: ContextUpdateStrategy.ReplaceSelf,
+        text: 'Synthetic game screen',
+        createdAt: Date.now(),
+      }]
+      const result = harness.runtime.ingest('voice words', {
+        model: 'model',
+        chatProvider: provider,
+        input: { type: 'input:voice', data: { audio: new ArrayBuffer(0) } },
+      }, 'session-1')
+      await vi.advanceTimersByTimeAsync(1200)
+      await result
+      expect(harness.stream).toHaveBeenCalledOnce()
+      expect(prepare.mock.calls[0]![0].signal.aborted).toBe(false)
+      expect(prepare.mock.calls[0]![0].inputKind).toBe('transcribed')
+      expect(JSON.stringify(harness.stream.mock.calls[0]![2])).toContain('Synthetic game screen')
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('cancels an unresponsive host and never sends its late context', async () => {
+    vi.useFakeTimers()
+    try {
+      const prepare = vi.fn<NonNullable<ChatOrchestratorRuntimeDeps['prepareRequestContext']>>(async (input) => {
+        await new Promise(resolve => setTimeout(resolve, 3500))
+        return { conversation: input.conversation }
+      })
+      const harness = createHarness(undefined, { prepareRequestContext: prepare, requestPreparationTimeoutMs: 3000 })
+      const result = harness.runtime.ingest('words', { model: 'model', chatProvider: provider }, 'session-1')
+      const rejected = expect(result).rejects.toThrow('Request preparation deadline exceeded')
+      await vi.advanceTimersByTimeAsync(3000)
+      await rejected
+      expect(prepare.mock.calls[0]![0].signal.aborted).toBe(true)
+      await vi.advanceTimersByTimeAsync(500)
+      expect(harness.stream).not.toHaveBeenCalled()
+    }
+    finally {
+      vi.useRealTimers()
+    }
   })
 })

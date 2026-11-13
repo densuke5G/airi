@@ -28,6 +28,7 @@ import {
   AIRI_CHAT_SESSION_ID_HEADER,
 } from '../libs/product-signals/headers'
 import { getMemoryConnection, getOptionalMemoryConnection } from '../services/memory/connection'
+import { MEMORY_PREPARATION_TIMEOUT_MS } from '../services/memory/contracts'
 import { restoreMemorySourceText } from '../services/memory/source-text'
 import { createPresentedZenoContext } from '../services/zeno/presented-notice'
 import { useLLM } from './ai/chat-llm/llm'
@@ -476,6 +477,7 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   runtime = createChatOrchestratorRuntime({
+    requestPreparationTimeoutMs: MEMORY_PREPARATION_TIMEOUT_MS,
     prepareRequestContext: async (input) => {
       if (!getOptionalMemoryConnection())
         return { conversation: input.conversation }

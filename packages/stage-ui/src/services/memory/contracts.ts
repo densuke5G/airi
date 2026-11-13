@@ -1,6 +1,9 @@
 import type { World } from '@metrodoros/contracts/identity'
 import type { Conversation, PreparedRequestContext } from '@proj-airi/core-agent'
 
+/** Bounds host setup, IPC, and storage. The SDK keeps its separate recall budget and server validity deadlines. */
+export const MEMORY_PREPARATION_TIMEOUT_MS = 5000
+
 /** Non-secret settings shared by the two memory pages. Capabilities come from the host. */
 export interface MemoryProfile {
   endpoint: string

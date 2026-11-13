@@ -10,7 +10,7 @@ import { MetrodorosClient, ShortTermClient } from '@metrodoros/client'
 import { IdentityClient } from '@metrodoros/client/identity'
 import { jobKinds, jobStates } from '@metrodoros/contracts'
 
-import { emptyMemorySnapshot } from './contracts'
+import { emptyMemorySnapshot, MEMORY_PREPARATION_TIMEOUT_MS } from './contracts'
 
 interface HeldTurn {
   actor: string
@@ -643,7 +643,7 @@ export class MemoryOwner {
       return { mode: 'blocked', reason: 'stop_unconfirmed', ownerGeneration: this.generation, selectionGeneration: this.selectionGeneration, expiresAt: deadlineAt }
     if (this.conversationHost?.actor !== actor)
       throw new Error('memory.owner_lost')
-    if (!Number.isFinite(deadlineAt) || deadlineAt <= Date.now() || deadlineAt > Date.now() + 1000)
+    if (!Number.isFinite(deadlineAt) || deadlineAt <= Date.now() || deadlineAt > Date.now() + MEMORY_PREPARATION_TIMEOUT_MS)
       throw new Error('memory.deadline_exceeded')
     const userTurns = input.conversation.turns.filter(turn => turn.type === 'user')
     if (this.snapshot.profile.enabled && !this.usedSessions.has(input.sessionId) && userTurns.length === 1 && userTurns[0]?.id === input.userMessageId) {

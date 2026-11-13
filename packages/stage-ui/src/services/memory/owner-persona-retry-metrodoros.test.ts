@@ -21,7 +21,7 @@ afterEach(async () => {
 async function fixture() {
   vi.useFakeTimers()
   const storage = new MemoryStorage()
-  const control = { conflicts: 1, persona: 'Confirmed persona', nextPersona: 'Confirmed persona', expire: false, cancel: false }
+  const control = { conflicts: 1, persona: 'Confirmed persona', nextPersona: 'Confirmed persona', expire: false, cancel: false, persistenceMs: 0 }
   const recalls: Record<string, unknown>[] = []
   const registrations: Record<string, unknown>[] = []
   const scope = { scope_id: scopeId, revision: 1, forget_epoch: 0, access_revision: 0 }
@@ -92,7 +92,10 @@ async function fixture() {
     loadProfile: async () => ({ ...emptyMemorySnapshot().profile, enabled: true, worldId, cardBindings: [{ cardId: 'test-card', characterId }] }),
     saveProfile: async () => {},
     loadPrivateSessions: async () => [],
-    rememberPrivateSession: async () => {},
+    rememberPrivateSession: async () => {
+      if (control.persistenceMs)
+        await new Promise(resolve => setTimeout(resolve, control.persistenceMs))
+    },
     storage: async () => storage,
     fetch,
   })
@@ -100,8 +103,8 @@ async function fixture() {
   await owner.registerHost('conversation', 'conversation', async () => true)
   await owner.registerHost('speech', 'speech', async () => true, async () => true)
   await owner.command({ kind: 'connect', token: 'synthetic-token' })
-  const prepare = () => {
-    const deadlineAt = Date.now() + 1000
+  const prepare = (budgetMs = 1000) => {
+    const deadlineAt = Date.now() + budgetMs
     return owner.prepare('conversation', 'ref', { conversation: { turns: [{ type: 'user', id: 'user', content: [{ type: 'text', text: 'Synthetic input' }] }] }, sessionId: 'airi-session', userMessageId: 'user', attemptId: 'attempt', deadlineAt, model: 'model', providerId: 'provider', cardId: 'test-card', inputKind: 'typed', appInstructionIds: [] }, deadlineAt)
   }
   return { owner, control, recalls, registrations, fetch, prepare }
@@ -166,5 +169,25 @@ describe('persona confirmation after a registration conflict', () => {
     expect((await r.prepare()).mode).toBe('blocked')
     expect(r.recalls).toHaveLength(1)
     expect((await r.owner.gate('conversation', 'ref', 'initial')).allow).toBe(false)
+  })
+})
+
+describe('host preparation budget', () => {
+  it.each([{ sendDelayMs: 0, allow: true }, { sendDelayMs: 3800, allow: false }])('keeps the original send deadline after slow privacy storage: $sendDelayMs ms', async ({ sendDelayMs, allow }) => {
+    const r = await fixture()
+    r.control.conflicts = 0
+    r.control.persistenceMs = 1200
+    const result = r.prepare(5000)
+    await vi.advanceTimersByTimeAsync(1200)
+    expect((await result).mode).toBe('memory')
+    expect(r.recalls).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(sendDelayMs)
+    expect((await r.owner.gate('conversation', 'ref', 'initial')).allow).toBe(allow)
+  })
+
+  it('rejects host deadlines beyond the bounded preparation budget', async () => {
+    const r = await fixture()
+    await expect(r.prepare(5001)).rejects.toThrow('memory.deadline_exceeded')
+    expect(r.recalls).toHaveLength(0)
   })
 })

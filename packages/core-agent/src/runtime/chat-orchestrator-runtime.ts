@@ -283,6 +283,8 @@ export interface PreparedRequestContext {
 }
 
 export interface ChatOrchestratorRuntimeDeps {
+  /** Bounds host preparation, including IPC and storage. Performance targets do not cancel a turn. @default 5000 */
+  requestPreparationTimeoutMs?: number
   /** Runs after attachments and runtime instructions, before projections or provider calls. */
   prepareRequestContext?: (input: {
     conversation: Conversation
@@ -520,6 +522,9 @@ async function prepareWithDeadline(
 }
 
 export function createChatOrchestratorRuntime(deps: ChatOrchestratorRuntimeDeps): ChatOrchestratorRuntime {
+  const requestPreparationTimeoutMs = deps.requestPreparationTimeoutMs ?? 5000
+  if (!Number.isFinite(requestPreparationTimeoutMs) || requestPreparationTimeoutMs <= 0)
+    throw new RangeError('Invalid request preparation timeout')
   // A queued send owns one controller until performSend settles. Session reset
   // aborts that transport as well as rejecting queued work for the same session.
   const activeSends = new Map<string, {
@@ -948,7 +953,7 @@ export function createChatOrchestratorRuntime(deps: ChatOrchestratorRuntimeDeps)
           sessionId,
           userMessageId: roundId,
           attemptId: createId(),
-          deadlineAt: Date.now() + 1000,
+          deadlineAt: Date.now() + requestPreparationTimeoutMs,
           inputKind: hasVoice ? 'transcribed' : 'typed',
           model: options.model,
           providerId: activeProvider,

@@ -29,6 +29,9 @@ export class MemoryConnectionClient implements MemoryConnection {
 
   async prepare(input: MemoryPrepareInput, signal: AbortSignal): Promise<PreparedRequestContext> {
     signal.throwIfAborted()
+    const budgetMs = input.deadlineAt - Date.now()
+    if (!Number.isFinite(budgetMs) || budgetMs <= 0)
+      throw new Error('memory.deadline_exceeded')
     const referenceId = crypto.randomUUID()
     const controller = new AbortController()
     this.requests.set(referenceId, { input, controller })
@@ -39,18 +42,19 @@ export class MemoryConnectionClient implements MemoryConnection {
     combined.addEventListener('abort', cancel, { once: true })
     let onAbort: (() => void) | undefined
     const started = performance.now()
+    const timeout = setTimeout(() => controller.abort(new Error('memory.deadline_exceeded')), budgetMs)
     try {
       const prepared = await Promise.race([
         this.transport.prepare(referenceId, input, input.deadlineAt),
         new Promise<never>((_resolve, reject) => {
-          onAbort = () => reject(new Error('memory.prepare_cancelled'))
+          onAbort = () => reject(controller.signal.reason instanceof Error ? controller.signal.reason : new Error('memory.prepare_cancelled'))
           if (combined.aborted)
             onAbort()
           else
             combined.addEventListener('abort', onAbort, { once: true })
         }),
       ])
-      if (combined.aborted || performance.now() - started >= 1000) {
+      if (combined.aborted || performance.now() - started >= budgetMs || Date.now() >= input.deadlineAt) {
         controller.abort()
         throw new Error('memory.deadline_exceeded')
       }
@@ -105,6 +109,7 @@ export class MemoryConnectionClient implements MemoryConnection {
       throw error
     }
     finally {
+      clearTimeout(timeout)
       if (onAbort)
         combined.removeEventListener('abort', onAbort)
     }

@@ -79,17 +79,29 @@ it('reports received partial text when the provider fails', async () => {
 })
 
 it('aborts a slow preparation at the host deadline and discards late success', async () => {
-  let signal: AbortSignal | undefined
-  let release: ((value: { conversation: Conversation }) => void) | undefined
-  const test = harness(input => new Promise((resolve) => {
-    signal = input.signal
-    release = resolve
-  }))
-  const pending = test.runtime.submit('Question', { model: 'model', chatProvider: provider }, 'session')
-  await pending.accepted
-  await expect(pending.done).rejects.toThrow('deadline exceeded')
-  expect(signal?.aborted).toBe(true)
-  release?.({ conversation: { turns: [] } })
-  await Promise.resolve()
-  expect(test.stream).not.toHaveBeenCalled()
+  vi.useFakeTimers()
+  try {
+    let signal: AbortSignal | undefined
+    let deadlineAt: number | undefined
+    let release: ((value: { conversation: Conversation }) => void) | undefined
+    const test = harness(input => new Promise((resolve) => {
+      signal = input.signal
+      deadlineAt = input.deadlineAt
+      release = resolve
+    }))
+    const pending = test.runtime.submit('Question', { model: 'model', chatProvider: provider }, 'session')
+    await pending.accepted
+    const rejected = expect(pending.done).rejects.toThrow('deadline exceeded')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(deadlineAt).toBe(Date.now() + 5000)
+    await vi.advanceTimersByTimeAsync(5000)
+    await rejected
+    expect(signal?.aborted).toBe(true)
+    release?.({ conversation: { turns: [] } })
+    await Promise.resolve()
+    expect(test.stream).not.toHaveBeenCalled()
+  }
+  finally {
+    vi.useRealTimers()
+  }
 })

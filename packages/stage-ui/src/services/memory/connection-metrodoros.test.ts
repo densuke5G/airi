@@ -57,6 +57,56 @@ function transport(overrides: Partial<MemoryTransport> = {}): MemoryTransport {
 }
 
 describe('memoryConnectionClient acceptance', () => {
+  it('cancels a stalled transport at the original deadline and ignores late success', async () => {
+    vi.useFakeTimers()
+    try {
+      const pending = deferred<MemoryPrepared>()
+      const wire = transport({ prepare: vi.fn(() => pending.promise) })
+      const client = new MemoryConnectionClient(wire)
+      const result = client.prepare(input({ deadlineAt: Date.now() + 1500 }), new AbortController().signal)
+      const rejected = expect(result).rejects.toThrow('memory.deadline_exceeded')
+      await vi.advanceTimersByTimeAsync(1500)
+      await rejected
+      expect(wire.cancel).toHaveBeenCalledOnce()
+      pending.resolve(prepared())
+      await Promise.resolve()
+      expect(wire.report).not.toHaveBeenCalled()
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('rejects an expired deadline before calling the transport', async () => {
+    const wire = transport()
+    const client = new MemoryConnectionClient(wire)
+    await expect(client.prepare(input({ deadlineAt: Date.now() - 1 }), new AbortController().signal)).rejects.toThrow('memory.deadline_exceeded')
+    expect(wire.prepare).not.toHaveBeenCalled()
+  })
+
+  // ROOT CAUSE:
+  // The client rejected valid context after one second, including IPC overhead. It now uses the original host deadline.
+  it('accepts valid memory after transport overhead exceeds one second', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'performance', 'setTimeout', 'clearTimeout'] })
+    try {
+      const pending = deferred<MemoryPrepared>()
+      const wire = transport({ prepare: vi.fn(() => pending.promise) })
+      const client = new MemoryConnectionClient(wire)
+      const request = input({ deadlineAt: Date.now() + 5000, inputKind: 'transcribed' })
+      const result = client.prepare(request, new AbortController().signal)
+      const accepted = expect(result).resolves.toMatchObject({ privateContext: true })
+      await vi.advanceTimersByTimeAsync(1200)
+      pending.resolve(prepared())
+      await accepted
+      expect(wire.prepare).toHaveBeenCalledWith(expect.any(String), request, request.deadlineAt)
+      expect(wire.cancel).not.toHaveBeenCalled()
+      client.dispose()
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('cancels an ignored-abort prepare and discards its late success', async () => {
     const pending = deferred<MemoryPrepared>()
     const wire = transport({ prepare: vi.fn(() => pending.promise) })
