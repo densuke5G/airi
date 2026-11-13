@@ -127,6 +127,45 @@ afterEach(() => {
 })
 
 describe('chat session synchronization', () => {
+  it('routes microphone input to a newly selected conversation without navigating other windows', async () => {
+    // ROOT CAUSE:
+    // The microphone lives in the main window, whose local selection stays on
+    // the old conversation when the chat window creates a new one.
+    // Explicit navigation also updates a separate, synchronized voice destination.
+    const namespace = `chat-session:${crypto.randomUUID()}`
+    const leader = createSyncedContext(namespace, 'leader-only')
+    await vi.waitFor(() => expect(leader.runtime.isLeader()).toBe(true))
+    setActivePinia(leader.pinia)
+    const main = useChatSessionStore()
+    await main.initialize()
+    const previousSessionId = main.activeSessionId
+    const follower = createSyncedContext(namespace, 'follower-only')
+    setActivePinia(follower.pinia)
+    const chat = useChatSessionStore()
+    await vi.waitFor(() => expect(follower.runtime.getLeaderId()).toBe(leader.runtime.participantId))
+    await chat.initialize()
+
+    const selectedSessionId = await chat.createSession('default', { setActive: false })
+    await chat.setActiveSession(selectedSessionId)
+
+    expect(main.voiceSessionId).toBe(selectedSessionId)
+    expect(main.activeSessionId).toBe(previousSessionId)
+    expect(chat.activeSessionId).toBe(selectedSessionId)
+    await main.commitUserMessage(main.voiceSessionId, { id: 'microphone-input', role: 'user', content: 'Spoken question' })
+    main.appendSessionMessage(main.voiceSessionId, { id: 'microphone-answer', role: 'assistant', content: 'Spoken answer', slices: [], tool_results: [] })
+    await vi.waitFor(() => expect(chat.messages.some(message => message.id === 'microphone-answer')).toBe(true))
+    expect(chat.messages.some(message => message.id === 'microphone-input')).toBe(true)
+    expect(main.getSessionMessages(previousSessionId).some(message => message.id === 'microphone-input')).toBe(false)
+
+    const utility = createSyncedContext(namespace, 'follower-only')
+    setActivePinia(utility.pinia)
+    const utilityChat = useChatSessionStore()
+    await vi.waitFor(() => expect(utility.runtime.getLeaderId()).toBe(leader.runtime.participantId))
+    await utilityChat.initialize()
+    expect(main.voiceSessionId).toBe(selectedSessionId)
+    expect(utilityChat.voiceSessionId).toBe(selectedSessionId)
+  })
+
   it('acknowledges a follower submission after storage and deduplicates its retry', async () => {
     const namespace = `chat-session:${crypto.randomUUID()}`
     const leader = createSyncedContext(namespace, 'leader-only')

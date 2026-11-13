@@ -1270,9 +1270,9 @@ catalogs:
       version: 0.1.16
 
 overrides:
-  '@metrodoros/contracts': file:./vendor/metrodoros/metrodoros-contracts-0.1.1-9ef7b25220aa.tgz
-  '@metrodoros/client': file:./vendor/metrodoros/metrodoros-client-0.1.1-7d45de327680.tgz
-  '@metrodoros/airi-adapter': file:./vendor/metrodoros/metrodoros-airi-adapter-0.1.1-af1bca2d7c05.tgz
+  '@metrodoros/airi-adapter': file:./vendor/metrodoros/metrodoros-airi-adapter-0.1.1-39a5ac968cc3.tgz
+  '@metrodoros/client': file:./vendor/metrodoros/metrodoros-client-0.1.1-230839d3746a.tgz
+  '@metrodoros/contracts': file:./vendor/metrodoros/metrodoros-contracts-0.1.1-4ea7c0970af6.tgz
   '@types/hast': ^3.0.5
   array-flatten: npm:@nolyfill/array-flatten@^1.0.44
   axios: npm:feaxios@^0.0.23
@@ -1951,8 +1951,8 @@ importers:
         specifier: 'catalog:'
         version: 11.4.9
       '@metrodoros/airi-adapter':
-        specifier: file:../../vendor/metrodoros/metrodoros-airi-adapter-0.1.1-af1bca2d7c05.tgz
-        version: file:vendor/metrodoros/metrodoros-airi-adapter-0.1.1-af1bca2d7c05.tgz
+        specifier: file:../../vendor/metrodoros/metrodoros-airi-adapter-0.1.1-39a5ac968cc3.tgz
+        version: file:vendor/metrodoros/metrodoros-airi-adapter-0.1.1-39a5ac968cc3.tgz
       '@moeru/eventa':
         specifier: 'catalog:'
         version: 1.0.2(electron@43.4.1(supports-color@10.2.2))(h3@2.0.1-rc.29(crossws@0.4.12(srvx@0.12.7)))(hono@4.13.3)(web-worker@1.5.0)
@@ -4992,14 +4992,14 @@ importers:
         specifier: 'catalog:'
         version: 3.8.1
       '@metrodoros/airi-adapter':
-        specifier: file:../../vendor/metrodoros/metrodoros-airi-adapter-0.1.1-af1bca2d7c05.tgz
-        version: file:vendor/metrodoros/metrodoros-airi-adapter-0.1.1-af1bca2d7c05.tgz
+        specifier: file:../../vendor/metrodoros/metrodoros-airi-adapter-0.1.1-39a5ac968cc3.tgz
+        version: file:vendor/metrodoros/metrodoros-airi-adapter-0.1.1-39a5ac968cc3.tgz
       '@metrodoros/client':
-        specifier: file:../../vendor/metrodoros/metrodoros-client-0.1.1-7d45de327680.tgz
-        version: file:vendor/metrodoros/metrodoros-client-0.1.1-7d45de327680.tgz
+        specifier: file:../../vendor/metrodoros/metrodoros-client-0.1.1-230839d3746a.tgz
+        version: file:vendor/metrodoros/metrodoros-client-0.1.1-230839d3746a.tgz
       '@metrodoros/contracts':
-        specifier: file:../../vendor/metrodoros/metrodoros-contracts-0.1.1-9ef7b25220aa.tgz
-        version: file:vendor/metrodoros/metrodoros-contracts-0.1.1-9ef7b25220aa.tgz
+        specifier: file:../../vendor/metrodoros/metrodoros-contracts-0.1.1-4ea7c0970af6.tgz
+        version: file:vendor/metrodoros/metrodoros-contracts-0.1.1-4ea7c0970af6.tgz
       '@moeru/eventa':
         specifier: 'catalog:'
         version: 1.0.2(electron@43.4.1(supports-color@10.2.2))(h3@2.0.1-rc.29(crossws@0.4.12(srvx@0.12.7)))(hono@4.13.3)(web-worker@1.5.0)
@@ -9245,16 +9245,16 @@ packages:
   '@mediapipe/tasks-vision@1.0.1':
     resolution: {integrity: sha512-rvRE2FmAZ6ZxKSw7wq+e+jQDpN3t1B/tD2mJz9SmAzb1msoDkd4dMoE4wAh8Z30Um0PQwLiHr9QtomhmXk3aUQ==}
 
-  '@metrodoros/airi-adapter@file:vendor/metrodoros/metrodoros-airi-adapter-0.1.1-af1bca2d7c05.tgz':
-    resolution: {integrity: sha512-D0VS+lbJe+KlRa1bB+9Ko8MqUkXlv7j3ZCVTphvxFcZANbEZL2vgw7lRY+4TXvldqzcgrregAJk+fA/qxbKWWA==, tarball: file:vendor/metrodoros/metrodoros-airi-adapter-0.1.1-af1bca2d7c05.tgz}
+  '@metrodoros/airi-adapter@file:vendor/metrodoros/metrodoros-airi-adapter-0.1.1-39a5ac968cc3.tgz':
+    resolution: {integrity: sha512-8SfMJQHT2KTMMZ7JUO3wmt6ed3g1pBp6WfDWANb9LB3Pn/70iULLGEOife+H7HOpWIoix6mSGge9SV8XLo5L3A==, tarball: file:vendor/metrodoros/metrodoros-airi-adapter-0.1.1-39a5ac968cc3.tgz}
     version: 0.1.1
 
-  '@metrodoros/client@file:vendor/metrodoros/metrodoros-client-0.1.1-7d45de327680.tgz':
-    resolution: {integrity: sha512-mvyDmO3lTX8CDMriphjZqGV2C0wpXbegZJwdeT5nKrWYZ5dtyKMUadmANYc3mVoqgJvF8TlpPY7FuyW2/OnLbw==, tarball: file:vendor/metrodoros/metrodoros-client-0.1.1-7d45de327680.tgz}
+  '@metrodoros/client@file:vendor/metrodoros/metrodoros-client-0.1.1-230839d3746a.tgz':
+    resolution: {integrity: sha512-pfCd3mDbibuMfoSKs6Q3aeSkP0Fk0OwGgEwQ2tI1OEvQ9Eia7cOUSvYtWW7WINRpVVhGLMTnQuD1oU0bpJkWjQ==, tarball: file:vendor/metrodoros/metrodoros-client-0.1.1-230839d3746a.tgz}
     version: 0.1.1
 
-  '@metrodoros/contracts@file:vendor/metrodoros/metrodoros-contracts-0.1.1-9ef7b25220aa.tgz':
-    resolution: {integrity: sha512-yl/vvaT3eMgpo6eQB75sQX/PY65w7ky14HzFF9DNxRFG8Y4mBq7BPLw8jwkIb+mBWaBy6mkQAo6XXa8NOv9XsQ==, tarball: file:vendor/metrodoros/metrodoros-contracts-0.1.1-9ef7b25220aa.tgz}
+  '@metrodoros/contracts@file:vendor/metrodoros/metrodoros-contracts-0.1.1-4ea7c0970af6.tgz':
+    resolution: {integrity: sha512-7/ic8IprCFBKqVOvwJktmdNeW4LlcowOvbmGVVD9jMDSSg4i0lhJM/9rHESa6oepHDkLLi4VavCJyGy3yzT8Tw==, tarball: file:vendor/metrodoros/metrodoros-contracts-0.1.1-4ea7c0970af6.tgz}
     version: 0.1.1
 
   '@modelcontextprotocol/sdk@1.30.0':
@@ -24175,16 +24175,16 @@ snapshots:
 
   '@mediapipe/tasks-vision@1.0.1': {}
 
-  '@metrodoros/airi-adapter@file:vendor/metrodoros/metrodoros-airi-adapter-0.1.1-af1bca2d7c05.tgz':
+  '@metrodoros/airi-adapter@file:vendor/metrodoros/metrodoros-airi-adapter-0.1.1-39a5ac968cc3.tgz':
     dependencies:
-      '@metrodoros/client': file:vendor/metrodoros/metrodoros-client-0.1.1-7d45de327680.tgz
-      '@metrodoros/contracts': file:vendor/metrodoros/metrodoros-contracts-0.1.1-9ef7b25220aa.tgz
+      '@metrodoros/client': file:vendor/metrodoros/metrodoros-client-0.1.1-230839d3746a.tgz
+      '@metrodoros/contracts': file:vendor/metrodoros/metrodoros-contracts-0.1.1-4ea7c0970af6.tgz
 
-  '@metrodoros/client@file:vendor/metrodoros/metrodoros-client-0.1.1-7d45de327680.tgz':
+  '@metrodoros/client@file:vendor/metrodoros/metrodoros-client-0.1.1-230839d3746a.tgz':
     dependencies:
-      '@metrodoros/contracts': file:vendor/metrodoros/metrodoros-contracts-0.1.1-9ef7b25220aa.tgz
+      '@metrodoros/contracts': file:vendor/metrodoros/metrodoros-contracts-0.1.1-4ea7c0970af6.tgz
 
-  '@metrodoros/contracts@file:vendor/metrodoros/metrodoros-contracts-0.1.1-9ef7b25220aa.tgz':
+  '@metrodoros/contracts@file:vendor/metrodoros/metrodoros-contracts-0.1.1-4ea7c0970af6.tgz':
     dependencies:
       json-schema-to-ts: 3.1.1
 

@@ -616,12 +616,12 @@ function postSpeakerCaption(text: string, operation: NonNullable<CaptionChannelE
 }
 
 /**
- * Sends buffered voice input text to the active chat session.
+ * Sends microphone input to the conversation last selected in a chat window.
  */
 async function sendVoiceInputTextToChat(text: string) {
   try {
     await chatStore.send({
-      sessionId: chatSession.activeSessionId,
+      sessionId: chatSession.voiceSessionId,
       text,
     })
   }
