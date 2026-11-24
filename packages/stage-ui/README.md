@@ -88,6 +88,15 @@ Periodic screen capture publishes descriptions through runtime context. The memo
 adapter preserves the current request's observations as quoted reference data.
 It excludes these observations from recall queries, user-input evidence, and replayed history.
 
+Memory-enabled chat sends requests through its bound chat model. New attachments
+require direct image input on that model.
+
+If your chat model supports images, disable **Use the vision model for chat images** to send attachments directly.
+
+Earlier attachments use their cached descriptions or an unavailable-image note in
+later text requests. Stored history keeps the original images. This projection
+preserves the memory request policy and sends no auxiliary vision request.
+
 ## Desktop microphone routing
 
 Conversation navigation stays local to each window. Explicit selection also sets
